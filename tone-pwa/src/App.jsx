@@ -9,8 +9,8 @@ function App() {
   
   const synthRef = useRef(null);
 
-  // Define a C Major scale
-  const notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'];
+  // Define a chromatic scale, will add other scales/keyes later
+  const notes = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B', 'C'];
 
   const initializeAudio = async () => {
     await Tone.start();

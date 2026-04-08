@@ -57,8 +57,8 @@ function App() {
   const playNote = (noteName, index) => {
     if (isReady && synthRef.current) {
       // If it's the 8th note (the final 'C'), push it up one octave to complete the scale
-      const currentOctave = index === 7 ? octave + 1 : octave;
-      synthRef.current.triggerAttackRelease(`${noteName}${currentOctave}`, "8n");
+      const currentOctave = index === 12 ? octave + 1 : octave;
+      synthRef.current.triggerAttackRelease(`${noteName}${currentOctave}`, "12n");
     }
   };
 
@@ -125,7 +125,7 @@ function App() {
           {/* Piano Keys */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '5px' }}>
             {notes.map((note, index) => {
-              const displayOctave = index === 7 ? octave + 1 : octave;
+              const displayOctave = index >= 7 ? octave + 1 : octave;
               return (
                 <button 
                   key={`${note}-${index}`} 

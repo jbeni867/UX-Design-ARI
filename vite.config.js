@@ -6,6 +6,5 @@ export default defineConfig({
   base: '/UX-Design-ARI/',
   plugins: [
     react(),
-    tailwindcss(),
-  ],
+  ]
 });

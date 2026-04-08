@@ -163,62 +163,81 @@ function App() {
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-rows-7 gap-1" role="grid" aria-label="Octave note grid">
-              {octaves.map((rowOctave) => (
-                <div
-                  className="grid h-full grid-cols-[clamp(48px,7vw,72px)_1fr] items-stretch gap-1 rounded-xl bg-slate-950/40 p-1"
-                  role="row"
-                  key={rowOctave}
-                >
+            <div className="flex min-h-0 flex-1 flex-col gap-1" role="grid" aria-label="Octave note grid">
+              <div className="grid min-h-0 flex-1 grid-rows-7 gap-1">
+                {octaves.map((rowOctave) => (
                   <div
-                    className="flex h-full items-center justify-center rounded-lg border border-cyan-200/20 bg-cyan-400/10 px-1 text-center text-[clamp(10px,1.1vw,12px)] font-black tracking-wide text-cyan-200"
-                    aria-label={`Octave ${rowOctave}`}
+                    className="grid h-full grid-cols-[clamp(48px,7vw,72px)_1fr] items-stretch gap-1 rounded-xl bg-slate-950/40 p-1"
+                    role="row"
+                    key={rowOctave}
                   >
-                    OCT {rowOctave}
-                  </div>
+                    <div
+                      className="flex h-full items-center justify-center rounded-lg border border-cyan-200/20 bg-cyan-400/10 px-1 text-center text-[clamp(10px,1.1vw,12px)] font-black tracking-wide text-cyan-200"
+                      aria-label={`Octave ${rowOctave}`}
+                    >
+                      OCT {rowOctave}
+                    </div>
 
-                  <div
-                    className="grid h-full grid-cols-7 gap-1"
-                    role="group"
-                    aria-label={`Octave ${rowOctave} notes`}
-                  >
-                    {rowNotes.map(({ note, offset }) => {
-                      const noteOctave = rowOctave + offset;
-                      const noteId = getNoteId(note, noteOctave);
-                      const isPressed = activeNotes.has(noteId);
-                      return (
-                        <button
-                          key={`note-${note}-${rowOctave}-${offset}`}
-                          className={`h-full w-full touch-none rounded-md border text-[clamp(10px,1.1vw,14px)] font-extrabold leading-none shadow-lg transition ${
-                            isPressed
-                              ? 'border-cyan-300/70 bg-cyan-200 text-slate-950 shadow-cyan-900/40 translate-y-px'
-                              : 'border-slate-200/20 bg-slate-100 text-slate-900 shadow-slate-950/20 hover:-translate-y-0.5 hover:bg-cyan-100'
-                          }`}
-                          onPointerDown={(event) => {
-                            event.currentTarget.setPointerCapture(event.pointerId);
-                            attackNoteForPointer(event.pointerId, note, noteOctave);
-                          }}
-                          onPointerUp={(event) => {
-                            releaseNoteForPointer(event.pointerId);
-                            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                              event.currentTarget.releasePointerCapture(event.pointerId);
-                            }
-                          }}
-                          onPointerCancel={(event) => {
-                            releaseNoteForPointer(event.pointerId);
-                            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                              event.currentTarget.releasePointerCapture(event.pointerId);
-                            }
-                          }}
-                        >
-                          {note}
-                          {noteOctave}
-                        </button>
-                      );
-                    })}
+                    <div
+                      className="grid h-full grid-cols-7 gap-1"
+                      role="group"
+                      aria-label={`Octave ${rowOctave} notes`}
+                    >
+                      {rowNotes.map(({ note, offset }) => {
+                        const noteOctave = rowOctave + offset;
+                        const noteId = getNoteId(note, noteOctave);
+                        const isPressed = activeNotes.has(noteId);
+                        return (
+                          <button
+                            key={`note-${note}-${rowOctave}-${offset}`}
+                            className={`h-full w-full touch-none rounded-md border text-[clamp(10px,1.1vw,14px)] font-extrabold leading-none shadow-lg transition ${
+                              isPressed
+                                ? 'border-cyan-300/70 bg-cyan-200 text-slate-950 shadow-cyan-900/40 translate-y-px'
+                                : 'border-slate-200/20 bg-slate-100 text-slate-900 shadow-slate-950/20 hover:-translate-y-0.5 hover:bg-cyan-100'
+                            }`}
+                            onPointerDown={(event) => {
+                              event.currentTarget.setPointerCapture(event.pointerId);
+                              attackNoteForPointer(event.pointerId, note, noteOctave);
+                            }}
+                            onPointerUp={(event) => {
+                              releaseNoteForPointer(event.pointerId);
+                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                event.currentTarget.releasePointerCapture(event.pointerId);
+                              }
+                            }}
+                            onPointerCancel={(event) => {
+                              releaseNoteForPointer(event.pointerId);
+                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                event.currentTarget.releasePointerCapture(event.pointerId);
+                              }
+                            }}
+                          >
+                            {note}
+                            {noteOctave}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-[clamp(48px,7vw,72px)_1fr] gap-1 rounded-xl bg-slate-950/50 p-1" aria-label="Note axis">
+                <div className="flex items-center justify-center rounded-lg border border-cyan-200/20 bg-cyan-400/10 px-1 py-2 text-[clamp(10px,1vw,12px)] font-black tracking-wider text-cyan-200">
+                  NOTE
                 </div>
-              ))}
+                <div className="grid grid-cols-7 gap-1">
+                  {rowNotes.map(({ note }) => (
+                    <div
+                      key={`axis-${note}`}
+                      className="flex items-center justify-center rounded-md border border-cyan-200/20 bg-slate-900/70 py-2 text-[clamp(10px,1.1vw,12px)] font-black tracking-[0.18em] text-cyan-100"
+                      aria-label={`Note ${note}`}
+                    >
+                      {note}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
         )}

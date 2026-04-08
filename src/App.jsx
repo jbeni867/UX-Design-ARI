@@ -5,7 +5,7 @@ function App() {
   const [isReady, setIsReady] = useState(false);
   const [synthType, setSynthType] = useState('Synth');
   const [activeNotes, setActiveNotes] = useState(new Set());
-  
+
   const synthRef = useRef(null);
   const activePointersRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
@@ -23,14 +23,11 @@ function App() {
 
   const initializeAudio = async () => {
     await Tone.start();
-    console.log('Audio context is ready');
     setupSynth(synthType);
     setIsReady(true);
   };
 
-  // Function to create and route a new synthesizer
   const setupSynth = (type) => {
-    // Clean up the old synth if it exists to prevent memory leaks
     if (synthRef.current) {
       synthRef.current.releaseAll();
       synthRef.current.dispose();
@@ -40,29 +37,23 @@ function App() {
     activeNoteCountsRef.current.clear();
     setActiveNotes(new Set());
 
-    // Create the new synth based on the selected type
     switch (type) {
       case 'FMSynth':
-        // FMSynth is great for brassy or bell-like sounds
         synthRef.current = new Tone.PolySynth(Tone.FMSynth).toDestination();
         break;
       case 'AMSynth':
-        // AMSynth has a slightly more harmonic, classic sci-fi feel
         synthRef.current = new Tone.PolySynth(Tone.AMSynth).toDestination();
         break;
       case 'Synth':
       default:
-        // The standard basic oscillator
         synthRef.current = new Tone.PolySynth(Tone.Synth).toDestination();
         break;
     }
   };
 
-  // Handle changing the instrument from the dropdown
   const handleSynthChange = (e) => {
     const newType = e.target.value;
     setSynthType(newType);
-    // Only try to set up the synth if the user has already started the audio engine
     if (isReady) {
       setupSynth(newType);
     }
@@ -95,6 +86,19 @@ function App() {
     activeNoteCountsRef.current.set(noteId, currentCount - 1);
   };
 
+  const releaseNoteForPointer = (pointerId) => {
+    if (isReady && synthRef.current) {
+      const noteId = activePointersRef.current.get(pointerId);
+      if (!noteId) {
+        return;
+      }
+
+      synthRef.current.triggerRelease(noteId);
+      activePointersRef.current.delete(pointerId);
+      decrementActiveNote(noteId);
+    }
+  };
+
   const attackNoteForPointer = (pointerId, noteName, targetOctave) => {
     if (isReady && synthRef.current) {
       const noteId = getNoteId(noteName, targetOctave);
@@ -106,19 +110,6 @@ function App() {
       synthRef.current.triggerAttack(noteId);
       activePointersRef.current.set(pointerId, noteId);
       incrementActiveNote(noteId);
-    }
-  };
-
-  const releaseNoteForPointer = (pointerId) => {
-    if (isReady && synthRef.current) {
-      const noteId = activePointersRef.current.get(pointerId);
-      if (!noteId) {
-        return;
-      }
-
-      synthRef.current.triggerRelease(noteId);
-      activePointersRef.current.delete(pointerId);
-      decrementActiveNote(noteId);
     }
   };
 
@@ -187,6 +178,7 @@ function App() {
                         const noteOctave = rowOctave + offset;
                         const noteId = getNoteId(note, noteOctave);
                         const isPressed = activeNotes.has(noteId);
+
                         return (
                           <button
                             key={`note-${note}-${rowOctave}-${offset}`}

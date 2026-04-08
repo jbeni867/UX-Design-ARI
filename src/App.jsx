@@ -13,13 +13,20 @@ function App() {
   const octaves = [7, 6, 5, 4, 3, 2, 1];
   const rowNotes = [
     { note: 'C', offset: 0 },
+    { note: 'Db', offset: 0 },
     { note: 'D', offset: 0 },
+    { note: 'Eb', offset: 0 },
     { note: 'E', offset: 0 },
     { note: 'F', offset: 0 },
+    { note: 'Gb', offset: 0 },
     { note: 'G', offset: 0 },
+    { note: 'Ab', offset: 0 },
     { note: 'A', offset: 0 },
+    { note: 'Bb', offset: 0 },
     { note: 'B', offset: 0 },
   ];
+  const noteGridTemplateColumns = `repeat(${rowNotes.length}, minmax(0, 1fr))`;
+  const octaveGridTemplateRows = `repeat(${octaves.length}, minmax(0, 1fr))`;
 
   const initializeAudio = async () => {
     await Tone.start();
@@ -155,7 +162,7 @@ function App() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-1" role="grid" aria-label="Octave note grid">
-              <div className="grid min-h-0 flex-1 grid-rows-7 gap-1">
+              <div className="grid min-h-0 flex-1 gap-1" style={{ gridTemplateRows: octaveGridTemplateRows }}>
                 {octaves.map((rowOctave) => (
                   <div
                     className="grid h-full grid-cols-[clamp(48px,7vw,72px)_1fr] items-stretch gap-1 rounded-xl bg-slate-950/40 p-1"
@@ -170,7 +177,8 @@ function App() {
                     </div>
 
                     <div
-                      className="grid h-full grid-cols-7 gap-1"
+                      className="grid h-full gap-1"
+                      style={{ gridTemplateColumns: noteGridTemplateColumns }}
                       role="group"
                       aria-label={`Octave ${rowOctave} notes`}
                     >
@@ -218,7 +226,7 @@ function App() {
                 <div className="flex items-center justify-center rounded-lg border border-cyan-200/20 bg-cyan-400/10 px-1 py-2 text-[clamp(10px,1vw,12px)] font-black tracking-wider text-cyan-200">
                   NOTE
                 </div>
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid gap-1" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
                   {rowNotes.map(({ note }) => (
                     <div
                       key={`axis-${note}`}

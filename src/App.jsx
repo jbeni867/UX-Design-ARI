@@ -26,6 +26,7 @@ function App() {
   const synthRef = useRef(null);
   const analyzerRef = useRef(null);
   const activePointersRef = useRef(new Map());
+  const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
 
   const octaves = [7, 6, 5, 4, 3, 2, 1];
@@ -137,6 +138,8 @@ function App() {
   };
 
   const releaseNoteForPointer = (pointerId) => {
+    pendingPointerNotesRef.current.delete(pointerId);
+
     if (isReady && synthRef.current) {
       const noteId = activePointersRef.current.get(pointerId);
       if (!noteId) return;
@@ -148,8 +151,16 @@ function App() {
 
   const attackNoteForPointer = async (pointerId, noteName, targetOctave) => {
     if (synthRef.current) {
-      await ensureAudioReady();
       const noteId = getNoteId(noteName, targetOctave);
+      pendingPointerNotesRef.current.set(pointerId, noteId);
+
+      await ensureAudioReady();
+
+      if (pendingPointerNotesRef.current.get(pointerId) !== noteId) {
+        return;
+      }
+
+      pendingPointerNotesRef.current.delete(pointerId);
       const previousNoteId = activePointersRef.current.get(pointerId);
       if (previousNoteId) releaseNoteForPointer(pointerId);
       synthRef.current.triggerAttack(noteId);

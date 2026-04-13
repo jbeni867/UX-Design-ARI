@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
-import { AudioVisualizer } from './AudioVisualizer';
 
 // Color mapping for each note
 const NOTE_COLORS = {
@@ -64,23 +63,24 @@ function App() {
       }
     };
 
+    const retryOnWindowLoad = () => {
+      void startAudioOnLoad();
+    };
+
+    if (document.readyState === 'complete') {
+      void startAudioOnLoad();
+    } else {
+      window.addEventListener('load', retryOnWindowLoad, { once: true });
+    }
+
     if (!analyzerRef.current) {
       analyzerRef.current = new Tone.Analyser('waveform', 256);
     }
     setupSynth(synthType);
-    void startAudioOnLoad();
-
-    const retryAutoStart = () => {
-      void startAudioOnLoad();
-    };
-
-    window.addEventListener('pointerdown', retryAutoStart);
-    window.addEventListener('keydown', retryAutoStart);
 
     return () => {
       isMounted = false;
-      window.removeEventListener('pointerdown', retryAutoStart);
-      window.removeEventListener('keydown', retryAutoStart);
+      window.removeEventListener('load', retryOnWindowLoad);
       if (synthRef.current) {
         synthRef.current.releaseAll();
         synthRef.current.dispose();
@@ -198,47 +198,42 @@ function App() {
   return (
     <main className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-900 px-2 py-2 text-slate-100 sm:px-4 sm:py-4">
       <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col gap-3">
-
-        {/* Header */}
-        <header className="shrink-0 text-center">
-          <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-3xl font-black tracking-tight text-transparent sm:text-4xl">
-            Tone Grid Synth
-          </h1>
-          <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-            Interactive Music Grid • 7 Octaves • 12 Semitones
-          </p>
-        </header>
-
-        <>
-            {/* Controls Bar */}
-            <div className="shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full shadow-lg ${isReady ? 'animate-pulse bg-emerald-400 shadow-emerald-400/50' : 'bg-amber-400 shadow-amber-400/50'}`} />
-                  <p className="text-xs font-semibold text-emerald-400 sm:text-sm">{isReady ? 'Audio Engine Active' : autoStartBlocked ? 'Auto-start blocked by browser, starting on first interaction' : 'Starting audio engine...'}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <label htmlFor="synth-select" className="text-xs font-semibold text-cyan-300 sm:text-sm">
-                    Instrument
-                  </label>
-                  <select
-                    id="synth-select"
-                    value={synthType}
-                    onChange={handleSynthChange}
-                    className="cursor-pointer rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-cyan-50 shadow-lg outline-none ring-cyan-400/50 backdrop-blur transition-all duration-200 hover:border-cyan-400/50 focus:ring-2"
-                  >
-                    <option value="Synth">Basic Synth</option>
-                    <option value="FMSynth">FM Synth</option>
-                    <option value="AMSynth">AM Synth</option>
-                  </select>
-                </div>
-              </div>
+        {/* Header Bar */}
+        <header className="shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[220px]">
+              <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
+                Tone Grid Synth
+              </h1>
+              <p className="mt-1 text-xs text-slate-400 sm:text-sm">
+                Interactive Music Grid • 7 Octaves • 12 Semitones
+              </p>
             </div>
 
-            {/* Audio Visualizer */}
-            {analyzerRef.current && (
-              <AudioVisualizer analyzer={analyzerRef.current} />
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full shadow-lg ${isReady ? 'animate-pulse bg-emerald-400 shadow-emerald-400/50' : 'bg-amber-400 shadow-amber-400/50'}`} />
+                <p className="text-xs font-semibold text-emerald-400 sm:text-sm">{isReady ? 'Audio Engine Active' : autoStartBlocked ? 'Auto-start blocked by browser, starting on first interaction' : 'Starting audio engine...'}</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label htmlFor="synth-select" className="text-xs font-semibold text-cyan-300 sm:text-sm">
+                  Instrument
+                </label>
+                <select
+                  id="synth-select"
+                  value={synthType}
+                  onChange={handleSynthChange}
+                  className="cursor-pointer rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-cyan-50 shadow-lg outline-none ring-cyan-400/50 backdrop-blur transition-all duration-200 hover:border-cyan-400/50 focus:ring-2"
+                >
+                  <option value="Synth">Basic Synth</option>
+                  <option value="FMSynth">FM Synth</option>
+                  <option value="AMSynth">AM Synth</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </header>
 
             {/* Note Grid */}
             <div className="flex min-h-0 flex-1 flex-col gap-2" role="grid" aria-label="Octave note grid">
@@ -336,7 +331,6 @@ function App() {
                 </div>
               </div>
             </div>
-          </>
       </div>
     </main>
   );

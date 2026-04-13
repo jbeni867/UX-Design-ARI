@@ -20,6 +20,7 @@ const NOTE_COLORS = {
 
 function App() {
   const [isReady, setIsReady] = useState(false);
+  const [autoStartBlocked, setAutoStartBlocked] = useState(false);
   const [synthType, setSynthType] = useState('FMSynth');
   const [activeNotes, setActiveNotes] = useState(new Set());
 
@@ -49,12 +50,37 @@ function App() {
   const octaveGridTemplateRows = `repeat(${octaves.length}, minmax(0, 1fr))`;
 
   useEffect(() => {
+    let isMounted = true;
+
+    const startAudioOnLoad = async () => {
+      try {
+        await Tone.start();
+        if (!isMounted) return;
+        setIsReady(true);
+        setAutoStartBlocked(false);
+      } catch {
+        if (!isMounted) return;
+        setAutoStartBlocked(true);
+      }
+    };
+
     if (!analyzerRef.current) {
       analyzerRef.current = new Tone.Analyser('waveform', 256);
     }
     setupSynth(synthType);
+    void startAudioOnLoad();
+
+    const retryAutoStart = () => {
+      void startAudioOnLoad();
+    };
+
+    window.addEventListener('pointerdown', retryAutoStart);
+    window.addEventListener('keydown', retryAutoStart);
 
     return () => {
+      isMounted = false;
+      window.removeEventListener('pointerdown', retryAutoStart);
+      window.removeEventListener('keydown', retryAutoStart);
       if (synthRef.current) {
         synthRef.current.releaseAll();
         synthRef.current.dispose();
@@ -189,7 +215,7 @@ function App() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full shadow-lg ${isReady ? 'animate-pulse bg-emerald-400 shadow-emerald-400/50' : 'bg-amber-400 shadow-amber-400/50'}`} />
-                  <p className="text-xs font-semibold text-emerald-400 sm:text-sm">{isReady ? 'Audio Engine Active' : 'Tap any note to start audio'}</p>
+                  <p className="text-xs font-semibold text-emerald-400 sm:text-sm">{isReady ? 'Audio Engine Active' : autoStartBlocked ? 'Auto-start blocked by browser, starting on first interaction' : 'Starting audio engine...'}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <label htmlFor="synth-select" className="text-xs font-semibold text-cyan-300 sm:text-sm">

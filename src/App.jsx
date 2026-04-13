@@ -236,8 +236,8 @@ function App() {
         </header>
 
             {/* Note Grid */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2" role="grid" aria-label="Octave note grid">
-              <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateRows: octaveGridTemplateRows }}>
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5" role="grid" aria-label="Octave note grid">
+              <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
                 {octaves.map((rowOctave) => (
                   <div
                     className="grid h-full grid-cols-[clamp(52px,7vw,80px)_1fr] items-stretch gap-2"
@@ -245,13 +245,13 @@ function App() {
                     key={rowOctave}
                   >
                     {/* Octave Label */}
-                    <div className="flex h-full items-center justify-center rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/40 to-purple-950/40 px-1 text-center text-[clamp(11px,1.2vw,13px)] font-black tracking-wide text-cyan-300 shadow-lg">
+                    <div className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
                       OCT {rowOctave}
                     </div>
 
                     {/* Note Buttons */}
                     <div
-                      className="grid h-full gap-1.5 sm:gap-2"
+                      className="grid h-full gap-1 sm:gap-1.5"
                       style={{ gridTemplateColumns: noteGridTemplateColumns }}
                       role="group"
                       aria-label={`Octave ${rowOctave} notes`}
@@ -266,12 +266,12 @@ function App() {
                           <button
                             key={`note-${note}-${rowOctave}-${offset}`}
                             className={[
-                              'group relative h-full w-full touch-none overflow-hidden rounded-lg border-2 text-[clamp(9px,1vw,13px)] font-extrabold leading-none shadow-lg backdrop-blur transition-all duration-150',
+                              'group relative h-full w-full touch-none overflow-hidden rounded-none border-2 text-[clamp(13px,1.4vw,18px)] font-extrabold leading-none shadow-lg backdrop-blur transition-colors duration-150',
                               colors.bg,
                               colors.text,
                               isPressed
-                                ? `scale-90 ${colors.glow} shadow-2xl border-white/50 brightness-125`
-                                : 'scale-100 border-white/20 shadow-black/40 hover:scale-105 hover:brightness-110 active:scale-90',
+                                ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
+                                : 'border-white/20 shadow-black/40',
                             ].join(' ')}
                             onPointerDown={async (event) => {
                               event.currentTarget.setPointerCapture(event.pointerId);
@@ -299,9 +299,6 @@ function App() {
                             {isPressed && (
                               <div className="absolute inset-0 animate-pulse bg-white/20" />
                             )}
-
-                            {/* Hover gradient */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
                           </button>
                         );
                       })}
@@ -312,16 +309,14 @@ function App() {
 
               {/* Note Axis Labels */}
               <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
-                <div className="flex items-center justify-center rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/40 to-purple-950/40 px-1 py-2 text-[clamp(10px,1vw,12px)] font-black tracking-wider text-cyan-300 shadow-lg">
-                  NOTE
-                </div>
-                <div className="grid gap-1.5 sm:gap-2" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
+                <div aria-hidden="true" />
+                <div className="grid gap-1 sm:gap-1.5" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
                   {rowNotes.map(({ note }) => {
                     const colors = NOTE_COLORS[note];
                     return (
                       <div
                         key={`axis-${note}`}
-                        className={`flex items-center justify-center rounded-lg border-2 border-white/20 ${colors.bg} ${colors.text} py-2 text-[clamp(9px,1vw,12px)] font-black tracking-wider shadow-lg`}
+                        className={`flex items-center justify-center rounded-none border border-white/10 ${colors.bg} ${colors.text} py-1 text-[clamp(13px,1.4vw,17px)] font-medium tracking-wider`}
                         aria-label={`Note ${note}`}
                       >
                         {note}

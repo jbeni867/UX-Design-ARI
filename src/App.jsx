@@ -1,6 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 
+
+const NOTE_ORDER = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+
+const SCALES = {
+  chromatic: {
+    label: 'Chromatic (All Notes)',
+    intervals: [0,1,2,3,4,5,6,7,8,9,10,11],
+  },
+  major: {
+    label: 'Major',
+    intervals: [0,2,4,5,7,9,11],
+  },
+  minor: {
+    label: 'Minor',
+    intervals: [0,2,3,5,7,8,10],
+  },
+  pentatonicMajor: {
+    label: 'Pentatonic Major',
+    intervals: [0,2,4,7,9],
+  },
+  pentatonicMinor: {
+    label: 'Pentatonic Minor',
+    intervals: [0,3,5,7,10],
+  },
+};
+
+
 // Color mapping for each note
 const NOTE_COLORS = {
   'C':  { bg: 'bg-red-500',     glow: 'shadow-red-500/50',     text: 'text-white' },

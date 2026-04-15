@@ -184,7 +184,7 @@ function App() {
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const [selectedScale, setSelectedScale] = useState('chromatic'); //For selecting key
+  const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
 
 

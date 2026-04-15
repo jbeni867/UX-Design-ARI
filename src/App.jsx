@@ -439,12 +439,6 @@ function App() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
-                  Instrument
-                </span>
-                ...
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
                   Scale

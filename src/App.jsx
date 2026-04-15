@@ -184,6 +184,10 @@ function App() {
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  const [selectedScale, setSelectedScale] = useState('chromatic'); //For selecting key
+  const [selectedKey, setSelectedKey] = useState('C');
+
+
   const instrumentRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
@@ -220,6 +224,23 @@ function App() {
       disposeInstrument();
     };
   }, []);
+
+
+  const allowedNotes = (() => {
+    if (selectedScale === 'chromatic') {
+      return new Set(NOTE_ORDER);
+    }
+
+    const scale = SCALES[selectedScale];
+    const rootIndex = NOTE_ORDER.indexOf(selectedKey);
+
+    return new Set(
+      scale.intervals.map(
+        (i) => NOTE_ORDER[(rootIndex + i) % 12]
+      )
+    );
+  })();
+
 
   const disposeInstrument = () => {
     if (instrumentRef.current) {
@@ -417,6 +438,44 @@ function App() {
                   {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
                 </button>
               </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
+                  Instrument
+                </span>
+                ...
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
+                  Scale
+                </span>
+
+                <select
+                  value={selectedScale}
+                  onChange={(e) => setSelectedScale(e.target.value)}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-sm text-slate-100"
+                >
+                  {Object.entries(SCALES).map(([key, scale]) => (
+                    <option key={key} value={key}>
+                      {scale.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedKey}
+                  onChange={(e) => setSelectedKey(e.target.value)}
+                  disabled={selectedScale === 'chromatic'}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-sm text-slate-100 disabled:opacity-40"
+                >
+                  {NOTE_ORDER.map((note) => (
+                    <option key={note} value={note}>
+                      {note}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
             </div>
           </div>
         </header>
@@ -447,7 +506,9 @@ function App() {
                         const noteId = getNoteId(note, noteOctave);
                         const isPressed = activeNotes.has(noteId);
                         const colors = NOTE_COLORS[note];
-                        const disabled = samplerLoading;
+                        const inScale = allowedNotes.has(note);
+                        const disabled = samplerLoading || !inScale;
+
 
                         return (
                           <button

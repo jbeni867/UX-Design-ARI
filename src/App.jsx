@@ -27,6 +27,7 @@ const SCALES = {
   },
 };
 
+const LOGO_SRC = `${import.meta.env.BASE_URL}ariClearBackground.png`;
 
 // Color mapping for each note
 const NOTE_COLORS = {
@@ -403,13 +404,18 @@ function App() {
         {/* Header Bar */}
         <header className="shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-[220px]">
-              <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
-                Tone Grid Synth
-              </h1>
-              <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-                Interactive Music Grid • 7 Octaves • 12 Semitones
-              </p>
+            <div className="flex min-w-[220px] items-center gap-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
+                <img src={LOGO_SRC} alt="ARI logo" className="h-full w-full object-cover" draggable="false" />
+              </div>
+              <div>
+                <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
+                  ARI - Audio Resonance Interface
+                </h1>
+                <p className="mt-1 text-xs text-slate-400 sm:text-sm">
+                  Interactive Music Grid • 7 Octaves • 12 Semitones
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">

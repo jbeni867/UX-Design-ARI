@@ -516,14 +516,6 @@ function App() {
                 </select>
               </div>
 
-              <button
-                onClick={toggleGridFullscreen}
-                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
-              >
-                {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-              </button>
-
             </div>
           </div>
         </header>
@@ -616,7 +608,13 @@ function App() {
 
               {/* Note Axis Labels */}
               <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
-                <div aria-hidden="true" />
+                <button
+                  onClick={toggleGridFullscreen}
+                  className="rounded-none border border-white/20 bg-slate-800/80 px-1 py-1 text-[clamp(10px,1.1vw,12px)] font-bold tracking-wide text-cyan-200 shadow-lg transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
+                >
+                  {isGridFullscreen ? 'EXIT' : 'FULL'}
+                </button>
                 <div className="grid gap-1 sm:gap-1.5" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
                   {rowNotes.map(({ note }) => {
                     const colors = NOTE_COLORS[note];

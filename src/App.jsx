@@ -184,12 +184,14 @@ function App() {
   const [samplerLoading, setSamplerLoading] = useState(false);
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [isGridFullscreen, setIsGridFullscreen] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
 
 
   const instrumentRef = useRef(null);
+  const gridPanelRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
   const activePointersRef = useRef(new Map());
@@ -225,6 +227,44 @@ function App() {
       disposeInstrument();
     };
   }, []);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+      setIsGridFullscreen(fullscreenElement === gridPanelRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
+  const toggleGridFullscreen = async () => {
+    const target = gridPanelRef.current;
+    if (!target) return;
+
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+
+    try {
+      if (fullscreenElement === target) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+      } else if (target.requestFullscreen) {
+        await target.requestFullscreen();
+      } else if (target.webkitRequestFullscreen) {
+        target.webkitRequestFullscreen();
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle failed:', err);
+    }
+  };
 
 
   const allowedNotes = (() => {
@@ -476,12 +516,25 @@ function App() {
                 </select>
               </div>
 
+              <button
+                onClick={toggleGridFullscreen}
+                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
+              >
+                {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              </button>
+
             </div>
           </div>
         </header>
 
             {/* Note Grid */}
-            <div className="flex min-h-0 flex-1 flex-col gap-1.5" role="grid" aria-label="Octave note grid">
+            <section
+              ref={gridPanelRef}
+              className={`flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
+              role="grid"
+              aria-label="Octave note grid"
+            >
               <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
                 {octaves.map((rowOctave) => (
                   <div
@@ -579,7 +632,7 @@ function App() {
                   })}
                 </div>
               </div>
-            </div>
+            </section>
       </div>
     </main>
 

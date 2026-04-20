@@ -188,6 +188,7 @@ function App() {
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
+  const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
 
 
   const instrumentRef = useRef(null);
@@ -214,7 +215,6 @@ function App() {
     { note: 'B',  offset: 0 },
   ];
 
-  const noteGridTemplateColumns = `repeat(${rowNotes.length}, minmax(0, 1fr))`;
   const octaveGridTemplateRows = `repeat(${octaves.length}, minmax(0, 1fr))`;
 
   useEffect(() => {
@@ -281,6 +281,9 @@ function App() {
       )
     );
   })();
+
+  const visibleNotes = hideUnusedNotes ? rowNotes.filter(({ note }) => allowedNotes.has(note)) : rowNotes;
+  const noteGridTemplateColumns = `repeat(${visibleNotes.length}, minmax(0, 1fr))`;
 
 
   const disposeInstrument = () => {
@@ -516,6 +519,21 @@ function App() {
                 </select>
               </div>
 
+              <button
+                onClick={() => setHideUnusedNotes(!hideUnusedNotes)}
+                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+              >
+                {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
+              </button>
+
+              <button
+                onClick={toggleGridFullscreen}
+                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
+              >
+                {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              </button>
+
             </div>
           </div>
         </header>
@@ -546,13 +564,13 @@ function App() {
                       role="group"
                       aria-label={`Octave ${rowOctave} notes`}
                     >
-                      {rowNotes.map(({ note, offset }) => {
+                      {visibleNotes.map(({ note, offset }) => {
                         const noteOctave = rowOctave + offset;
                         const noteId = getNoteId(note, noteOctave);
                         const isPressed = activeNotes.has(noteId);
                         const colors = NOTE_COLORS[note];
                         const inScale = allowedNotes.has(note);
-                        const disabled = samplerLoading || !inScale;
+                        const disabled = samplerLoading || (!hideUnusedNotes && !inScale);
 
 
                         return (
@@ -616,7 +634,7 @@ function App() {
                   {isGridFullscreen ? 'EXIT' : 'FULL'}
                 </button>
                 <div className="grid gap-1 sm:gap-1.5" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
-                  {rowNotes.map(({ note }) => {
+                  {visibleNotes.map(({ note }) => {
                     const colors = NOTE_COLORS[note];
                     return (
                       <div

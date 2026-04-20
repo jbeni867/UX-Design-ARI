@@ -190,6 +190,7 @@ function App() {
 
 
   const instrumentRef = useRef(null);
+  const pianoFxRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
   const activePointersRef = useRef(new Map());
@@ -255,6 +256,15 @@ function App() {
       }
       instrumentRef.current = null;
     }
+    if (pianoFxRef.current) {
+      try {
+        pianoFxRef.current.reverb.dispose();
+        pianoFxRef.current.compressor.dispose();
+      } catch {
+        // ignore
+      }
+      pianoFxRef.current = null;
+    }
   };
 
   const ensureAudioReady = async () => {
@@ -264,12 +274,14 @@ function App() {
     setIsReady(true);
   };
 
-  const connectInstrument = (inst) => {
+  const connectInstrument = (inst, fx = null) => {
+    const source = fx ? fx.compressor : inst;
+    if (fx) inst.connect(fx.reverb);
     if (analyzerRef.current) {
-      inst.connect(analyzerRef.current);
+      source.connect(analyzerRef.current);
       analyzerRef.current.toDestination();
     } else {
-      inst.toDestination();
+      source.toDestination();
     }
   };
 
@@ -293,7 +305,23 @@ function App() {
         onload: () => { setSamplerLoading(false); resolveReady(); },
         onerror: (err) => { console.warn('Sampler file error:', err); resolveReady(); },
       });
-      connectInstrument(sampler);
+      const SAMPLER_FX = {
+        piano:           { decay: 1.8, preDelay: 0.01, wet: 0.30, threshold: -18, ratio: 3,   attack: 0.02, release: 0.25 },
+        'guitar-acoustic': { decay: 1.2, preDelay: 0.01, wet: 0.22, threshold: -20, ratio: 3,   attack: 0.01, release: 0.20 },
+        flute:           { decay: 2.4, preDelay: 0.02, wet: 0.35, threshold: -22, ratio: 2.5, attack: 0.03, release: 0.30 },
+        violin:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+        xylophone:       { decay: 0.8, preDelay: 0.005,wet: 0.20, threshold: -16, ratio: 4,   attack: 0.005,release: 0.15 },
+      };
+      let fx = null;
+      const fxConfig = SAMPLER_FX[type];
+      if (fxConfig) {
+        const reverb = new Tone.Reverb({ decay: fxConfig.decay, preDelay: fxConfig.preDelay, wet: fxConfig.wet });
+        const compressor = new Tone.Compressor({ threshold: fxConfig.threshold, ratio: fxConfig.ratio, attack: fxConfig.attack, release: fxConfig.release });
+        reverb.connect(compressor);
+        pianoFxRef.current = { reverb, compressor };
+        fx = pianoFxRef.current;
+      }
+      connectInstrument(sampler, fx);
       instrumentRef.current = sampler;
     } else {
       samplerReadyRef.current = Promise.resolve();

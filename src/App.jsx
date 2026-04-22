@@ -162,6 +162,14 @@ const SAMPLER_CONFIGS = {
     urls: makeSamplerUrls(['C5','C6','C7','C8','G4','G5','G6','G7']),
     baseUrl: `${import.meta.env.BASE_URL}samples/xylophone/`,
   },
+  trumpet: {
+    urls: makeSamplerUrls(['A3','A5','As4','C4','C6','D5','Ds4','F3','F4','F5','G4']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trumpet/`,
+  },
+  trombone: {
+    urls: makeSamplerUrls(['As1','As2','As3','C3','C4','Cs2','Cs4','D3','D4','Ds2','Ds3','Ds4','F2','F3','F4','Gs2','Gs3']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trombone/`,
+  },
 };
 
 // All available instrument options
@@ -174,6 +182,8 @@ const INSTRUMENT_OPTIONS = [
   { value: 'flute',           label: 'Flute',             isSampler: true  },
   { value: 'violin',          label: 'Violin',            isSampler: true  },
   { value: 'xylophone',       label: 'Xylophone',         isSampler: true  },
+  { value: 'trumpet',       label: 'Trumpet',         isSampler: true  },
+  { value: 'trombone',       label: 'Trombone',         isSampler: true  },
 ];
 
 function InstrumentPickerModal({ current, onSelect, onClose }) {
@@ -425,6 +435,8 @@ function App() {
         flute:           { decay: 2.4, preDelay: 0.02, wet: 0.35, threshold: -22, ratio: 2.5, attack: 0.03, release: 0.30 },
         violin:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
         xylophone:       { decay: 0.8, preDelay: 0.005,wet: 0.20, threshold: -16, ratio: 4,   attack: 0.005,release: 0.15 },
+        trumpet:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+        trombone:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
       };
       let fx = null;
       const fxConfig = SAMPLER_FX[type];

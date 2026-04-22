@@ -1,5 +1,65 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
+// Use global window.lamejs loaded from public/lame.min.js
+
+async function encodeToMp3(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  
+  // Wrap decodeAudioData in a Promise to support both older and newer browser implementations
+  const audioBuffer = await new Promise((resolve, reject) => {
+    const result = audioContext.decodeAudioData(arrayBuffer, resolve, reject);
+    if (result instanceof Promise) {
+      result.catch(reject);
+    }
+  });
+
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new window.lamejs.Mp3Encoder(numChannels, sampleRate, 128); // 128 kbps
+
+  const left = audioBuffer.getChannelData(0);
+  const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left;
+
+  const convertFloatToInt16 = (buffer) => {
+    let l = buffer.length;
+    let buf = new Int16Array(l);
+    while (l--) {
+      let s = Math.max(-1, Math.min(1, buffer[l]));
+      buf[l] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return buf;
+  };
+
+  const left16 = convertFloatToInt16(left);
+  const right16 = convertFloatToInt16(right);
+
+  const sampleBlockSize = 1152;
+  const mp3Data = [];
+
+  for (let i = 0; i < audioBuffer.length; i += sampleBlockSize) {
+    const leftChunk = left16.subarray(i, i + sampleBlockSize);
+    const rightChunk = right16.subarray(i, i + sampleBlockSize);
+
+    let mp3buf;
+    if (numChannels >= 2) {
+      mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
+    } else {
+      mp3buf = encoder.encodeBuffer(leftChunk);
+    }
+
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  const mp3buf = encoder.flush();
+  if (mp3buf.length > 0) {
+    mp3Data.push(mp3buf);
+  }
+
+  return new Blob(mp3Data, { type: 'audio/mp3' });
+}
 
 
 const NOTE_ORDER = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -184,6 +244,7 @@ function App() {
   const [samplerLoading, setSamplerLoading] = useState(false);
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [recordingState, setRecordingState] = useState('idle');
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
@@ -196,6 +257,7 @@ function App() {
   const gridPanelRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
+  const recorderRef = useRef(null);
   const activePointersRef = useRef(new Map());
   const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
@@ -218,10 +280,16 @@ function App() {
 
   const octaveGridTemplateRows = `repeat(${octaves.length}, minmax(0, 1fr))`;
 
-  useEffect(() => {
+
+
+    useEffect(() => {
     if (!analyzerRef.current) {
       analyzerRef.current = new Tone.Analyser('waveform', 256);
     }
+    if (!recorderRef.current) {
+      recorderRef.current = new Tone.Recorder();
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setupInstrument(instrumentType);
 
     return () => {
@@ -326,6 +394,9 @@ function App() {
     } else {
       source.toDestination();
     }
+    if (recorderRef.current) {
+      source.connect(recorderRef.current);
+    }
   };
 
   const setupInstrument = (type) => {
@@ -386,6 +457,56 @@ function App() {
       instrumentRef.current = newSynth;
     }
   };
+  const handleRecordPauseToggle = async () => {
+    if (!recorderRef.current) return;
+    
+    if (recordingState === 'idle') {
+      await ensureAudioReady();
+      recorderRef.current.start();
+      setRecordingState('recording');
+    } else if (recordingState === 'recording') {
+      if (typeof recorderRef.current.pause === 'function') {
+        recorderRef.current.pause();
+      }
+      setRecordingState('paused');
+    } else if (recordingState === 'paused') {
+      // Tone.js uses start() to resume, but we don't await it because
+      // its internal promise incorrectly waits for a 'start' event instead of 'resume',
+      // causing it to hang indefinitely.
+      recorderRef.current.start().catch((err) => console.warn('Resume error:', err));
+      setRecordingState('recording');
+    }
+  };
+
+  const handleEndRecording = async () => {
+    if (!recorderRef.current || recordingState === 'idle') return;
+    
+    // Immediately set a loading state so the UI updates
+    setRecordingState('processing');
+    
+    try {
+      const recording = await recorderRef.current.stop();
+      
+      if (recording.size < 500) {
+        throw new Error('Recording is too short or empty. Please ensure audio was playing.');
+      }
+      
+      const mp3Blob = await encodeToMp3(recording);
+      
+      const url = URL.createObjectURL(mp3Blob);
+      const anchor = document.createElement('a');
+      anchor.download = 'ari-recording.mp3';
+      anchor.href = url;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error during recording end:', err);
+      alert('Error during recording: ' + (err.message || 'Unable to encode audio.'));
+    } finally {
+      setRecordingState('idle');
+    }
+  };
+
 
   const handleInstrumentChange = (newType) => {
     setInstrumentType(newType);
@@ -513,6 +634,27 @@ function App() {
                   className="cursor-pointer rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
                   {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {recordingState !== 'idle' && (
+                  <button
+                    onClick={handleEndRecording}
+                    className="cursor-pointer rounded-xl border border-slate-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg backdrop-blur transition-all duration-200 hover:border-slate-400/50 hover:bg-slate-700/80"
+                  >
+                    End Recording
+                  </button>
+                )}
+                <button
+                  onClick={handleRecordPauseToggle}
+                  className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur transition-all duration-200 ${
+                    recordingState === 'recording'
+                      ? 'animate-pulse border-red-400 bg-red-500 text-white hover:bg-red-400'
+                      : 'border-red-600 bg-red-600 text-white hover:bg-red-500'
+                  }`}
+                >
+                  {recordingState === 'recording' ? 'Pause' : 'Record'}
                 </button>
               </div>
 

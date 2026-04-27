@@ -26,6 +26,12 @@ export function useStepSequencer(instrumentRef) {
     setSequence([]);
   };
 
+  const undoStep = () => {
+    if (!isPlaying) {
+      setSequence((prev) => prev.slice(0, -1));
+    }
+  };
+
   const togglePlayback = async () => {
     if (isPlaying) {
       Tone.Transport.stop();
@@ -92,6 +98,7 @@ export function useStepSequencer(instrumentRef) {
     setBpm,
     recordStep,
     clearSequence,
+    undoStep,
     togglePlayback
   };
 }
@@ -103,7 +110,7 @@ export function useStepSequencer(instrumentRef) {
  * @param {Object} props.sequencer - The object returned by useStepSequencer()
  */
 export function SequencerControls({ sequencer }) {
-  const { sequence, isPlaying, bpm, setBpm, clearSequence, togglePlayback } = sequencer;
+  const { sequence, isPlaying, bpm, setBpm, clearSequence, undoStep, togglePlayback } = sequencer;
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur">
@@ -135,6 +142,14 @@ export function SequencerControls({ sequencer }) {
           max="300"
         />
       </div>
+
+      <button
+        onClick={undoStep}
+        disabled={isPlaying || sequence.length === 0}
+        className="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-yellow-400 transition-colors hover:bg-yellow-500/20 hover:text-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Undo
+      </button>
 
       <button
         onClick={clearSequence}

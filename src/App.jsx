@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import Shepherd from 'shepherd.js';
 import 'shepherd.js/dist/css/shepherd.css';
+import { useStepSequencer, SequencerControls } from './useStepSequencer';
 // Use global window.lamejs loaded from public/lame.min.js
 
 async function encodeToMp3(blob) {
@@ -452,6 +453,7 @@ function App() {
 
 
   const instrumentRef = useRef(null);
+  const sequencer = useStepSequencer(instrumentRef);
   const pianoFxRef = useRef(null);
   const gridPanelRef = useRef(null);
   const optionsMenuRef = useRef(null);
@@ -1112,6 +1114,7 @@ function App() {
     if (!instrumentRef.current) return;
 
     const noteId = getNoteId(noteName, targetOctave);
+    sequencer.recordStep(noteId);
     pendingPointerNotesRef.current.set(pointerId, noteId);
 
     await ensureAudioReady();
@@ -1174,6 +1177,8 @@ function App() {
                   </>
                 )}
               </div>
+
+              <SequencerControls sequencer={sequencer} />
 
               <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">Instrument</span>

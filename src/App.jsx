@@ -298,15 +298,14 @@ function FXPedalModal({ fxState, setFxState, onClose }) {
                   </h3>
                   <button
                     onClick={() => handleToggle(pedalKey)}
-                    className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${
-                      isEnabled ? 'bg-cyan-500' : 'bg-slate-600'
-                    }`}
+                    className="relative h-6 w-11 rounded-full transition-colors duration-200 bg-slate-600"
+                    style={{ backgroundColor: isEnabled ? '#06b6d4' : undefined }}
                   >
-                    <span
-                      className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                        isEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
+                    {isEnabled ? (
+                      <span className="absolute top-1 left-5 h-4 w-4 rounded-full bg-white shadow" />
+                    ) : (
+                      <span className="absolute top-1 left-0.5 h-4 w-4 rounded-full bg-white shadow" />
+                    )}
                   </button>
                 </div>
 

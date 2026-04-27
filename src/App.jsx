@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import Shepherd from 'shepherd.js';
 import 'shepherd.js/dist/css/shepherd.css';
 import { useStepSequencer, SequencerControls } from './useStepSequencer';
+import WheelInstrument from './WheelInstrument';
 // Use global window.lamejs loaded from public/lame.min.js
 
 async function encodeToMp3(blob) {
@@ -440,6 +441,7 @@ function App() {
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
   const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
+  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'wheel'
 
   // FX state - each pedal has enabled flag and params
   const [fxState, setFxState] = useState({
@@ -1278,6 +1280,13 @@ function App() {
               </div>
 
               <button
+                onClick={() => setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
+                className="rounded-xl border border-purple-500/40 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-200 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/60 hover:bg-slate-700/80 sm:text-sm"
+              >
+                {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+              </button>
+
+              <button
                 onClick={() => setFxModalOpen(true)}
                 className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
                 aria-label="Open FX pedals"
@@ -1289,13 +1298,26 @@ function App() {
           </div>
         </header>
 
-            {/* Note Grid */}
+            {/* Note Grid / Wheel */}
             <section
               ref={gridPanelRef}
               className={`relative z-0 flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
-              role="grid"
-              aria-label="Octave note grid"
+              role={layoutMode === 'grid' ? 'grid' : 'region'}
+              aria-label={layoutMode === 'grid' ? 'Octave note grid' : 'Wheel instrument'}
             >
+            {layoutMode === 'wheel' && (
+              <WheelInstrument
+                attackNoteForPointer={attackNoteForPointer}
+                releaseNoteForPointer={releaseNoteForPointer}
+                activeNotes={activeNotes}
+                samplerLoading={samplerLoading}
+                selectedScale={selectedScale}
+                selectedKey={selectedKey}
+                isAudioReady={isReady}
+                ensureAudioReady={ensureAudioReady}
+              />
+            )}
+            {layoutMode === 'grid' && (<>
               <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
                 {octaves.map((rowOctave) => (
                   <div
@@ -1401,6 +1423,7 @@ function App() {
                   })}
                 </div>
               </div>
+            </>)}
             </section>
       </div>
     </main>

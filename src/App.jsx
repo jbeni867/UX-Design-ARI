@@ -154,6 +154,17 @@ const SAMPLER_CONFIGS = {
     ]),
     baseUrl: `${import.meta.env.BASE_URL}samples/guitar-acoustic/`,
   },
+  'guitar-electric': {
+    urls: makeSamplerUrls([
+      'A2','A3','A4','A5',
+      'C3','C4','C5','C6',
+      'Cs2',
+      'Ds3','Ds4','Ds5',
+      'E2',
+      'Fs2','Fs3','Fs4','Fs5',
+    ]),
+    baseUrl: `${import.meta.env.BASE_URL}samples/guitar-electric/`,
+  },
   flute: {
     urls: makeSamplerUrls(['A4','A5','A6','C4','C5','C6','C7','E4','E5','E6']),
     baseUrl: `${import.meta.env.BASE_URL}samples/flute/`,
@@ -174,6 +185,10 @@ const SAMPLER_CONFIGS = {
     urls: makeSamplerUrls(['As1','As2','As3','C3','C4','Cs2','Cs4','D3','D4','Ds2','Ds3','Ds4','F2','F3','F4','Gs2','Gs3']),
     baseUrl: `${import.meta.env.BASE_URL}samples/trombone/`,
   },
+  saxophone: {
+    urls: makeSamplerUrls(['A4','A5','As3','As4','B3','B4','C4','C5','Cs3','Cs4','Cs5','D3','D4','D5','Ds3','Ds4','Ds5','E3','E4','E5','F3','F4','F5','Fs3','Fs4','Fs5','G3','G4','G5','Gs3','Gs4','Gs5']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/saxophone/`,
+  },
 };
 
 // All available instrument options
@@ -188,6 +203,8 @@ const INSTRUMENT_OPTIONS = [
   { value: 'xylophone',       label: 'Xylophone',         isSampler: true  },
   { value: 'trumpet',       label: 'Trumpet',         isSampler: true  },
   { value: 'trombone',       label: 'Trombone',         isSampler: true  },
+  { value: 'saxophone',      label: 'Saxophone',        isSampler: true  },
+  { value: 'guitar-electric',label: 'Electric Guitar',  isSampler: true  },
 ];
 
 function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked }) {

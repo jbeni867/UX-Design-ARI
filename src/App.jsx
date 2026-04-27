@@ -178,17 +178,192 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
   );
 }
 
+// FX Pedal definitions with Tone.js effect classes and default parameters
+const FX_PEDALS = {
+  chorus: {
+    label: 'Chorus',
+    effectClass: 'Chorus',
+    color: 'cyan',
+    params: {
+      frequency: { min: 0.1, max: 10, step: 0.1, default: 4, label: 'Frequency (Hz)' },
+      delay: { min: 0, max: 10, step: 0.1, default: 2.5, label: 'Delay (ms)' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Depth' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  delay: {
+    label: 'Delay',
+    effectClass: 'DelayFeedback',
+    color: 'blue',
+    params: {
+      delayTime: { min: 0.01, max: 1, step: 0.01, default: 0.25, label: 'Time (s)' },
+      feedback: { min: 0, max: 0.95, step: 0.01, default: 0.3, label: 'Feedback' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix' },
+    },
+  },
+  reverb: {
+    label: 'Reverb',
+    effectClass: 'Reverb',
+    color: 'purple',
+    params: {
+      decay: { min: 0.1, max: 10, step: 0.1, default: 2.5, label: 'Decay (s)' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix' },
+    },
+  },
+  overdrive: {
+    label: 'Overdrive',
+    effectClass: 'Distortion',
+    color: 'orange',
+    params: {
+      distortion: { min: 0, max: 1, step: 0.01, default: 0.4, label: 'Drive' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  distortion: {
+    label: 'Distortion',
+    effectClass: 'BitCrusher',
+    color: 'red',
+    params: {
+      bits: { min: 1, max: 8, step: 1, default: 4, label: 'Bits' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  sustain: {
+    label: 'Sustain',
+    effectClass: 'Compressor',
+    color: 'green',
+    params: {
+      threshold: { min: -60, max: 0, step: 1, default: -24, label: 'Threshold (dB)' },
+      ratio: { min: 1, max: 20, step: 0.5, default: 4, label: 'Ratio' },
+      attack: { min: 0, max: 1, step: 0.01, default: 0.003, label: 'Attack (s)' },
+      release: { min: 0, max: 1, step: 0.01, default: 0.25, label: 'Release (s)' },
+    },
+  },
+};
+
+function FXPedalModal({ fxState, setFxState, onClose }) {
+  const handleToggle = (pedalKey) => {
+    setFxState((prev) => ({
+      ...prev,
+      [pedalKey]: { ...prev[pedalKey], enabled: !prev[pedalKey].enabled },
+    }));
+  };
+
+  const handleParamChange = (pedalKey, paramKey, value) => {
+    setFxState((prev) => ({
+      ...prev,
+      [pedalKey]: { ...prev[pedalKey], params: { ...prev[pedalKey].params, [paramKey]: parseFloat(value) } },
+    }));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-black tracking-tight text-cyan-300">FX Pedals</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(FX_PEDALS).map(([pedalKey, pedal]) => {
+            const state = fxState[pedalKey];
+            const isEnabled = state?.enabled ?? false;
+            const colorMap = {
+              cyan: 'border-cyan-500/50 bg-cyan-500/10',
+              blue: 'border-blue-500/50 bg-blue-500/10',
+              purple: 'border-purple-500/50 bg-purple-500/10',
+              orange: 'border-orange-500/50 bg-orange-500/10',
+              red: 'border-red-500/50 bg-red-500/10',
+              green: 'border-emerald-500/50 bg-emerald-500/10',
+            };
+
+            return (
+              <div
+                key={pedalKey}
+                className={`rounded-xl border p-4 transition-all duration-200 ${
+                  isEnabled ? `${colorMap[pedal.color]} shadow-lg` : 'border-slate-600/50 bg-slate-800/40'
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className={`text-sm font-bold ${isEnabled ? `text-${pedal.color}-300` : 'text-slate-400'}`}>
+                    {pedal.label}
+                  </h3>
+                  <button
+                    onClick={() => handleToggle(pedalKey)}
+                    className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${
+                      isEnabled ? 'bg-cyan-500' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        isEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {isEnabled && pedal.params && (
+                  <div className="space-y-3">
+                    {Object.entries(pedal.params).map(([paramKey, param]) => {
+                      const value = state?.params?.[paramKey] ?? param.default;
+                      return (
+                        <div key={paramKey} className="space-y-1">
+                          <label className="text-xs text-slate-400">
+                            {param.label}: {typeof value === 'number' ? value.toFixed(2) : value}
+                          </label>
+                          <input
+                            type="range"
+                            min={param.min}
+                            max={param.max}
+                            step={param.step}
+                            value={value}
+                            onChange={(e) => handleParamChange(pedalKey, paramKey, e.target.value)}
+                            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-600 accent-cyan-400"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [isReady, setIsReady] = useState(false);
   const [instrumentType, setInstrumentType] = useState('FMSynth');
   const [samplerLoading, setSamplerLoading] = useState(false);
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [fxModalOpen, setFxModalOpen] = useState(false);
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
   const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
+
+  // FX state - each pedal has enabled flag and params
+  const [fxState, setFxState] = useState({
+    chorus: { enabled: false, params: { frequency: 4, delay: 2.5, depth: 0.5, wet: 0.5 } },
+    delay: { enabled: false, params: { delayTime: 0.25, feedback: 0.3, wet: 0.3 } },
+    reverb: { enabled: false, params: { decay: 2.5, wet: 0.3 } },
+    overdrive: { enabled: false, params: { distortion: 0.4, wet: 0.5 } },
+    distortion: { enabled: false, params: { bits: 4, wet: 0.5 } },
+    sustain: { enabled: false, params: { threshold: -24, ratio: 4, attack: 0.003, release: 0.25 } },
+  });
 
 
   const instrumentRef = useRef(null);
@@ -198,6 +373,16 @@ function App() {
   const activePointersRef = useRef(new Map());
   const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
+
+  // FX effect refs
+  const fxRefs = useRef({
+    chorus: null,
+    delay: null,
+    reverb: null,
+    overdrive: null,
+    distortion: null,
+    sustain: null,
+  });
 
   const octaves = [7, 6, 5, 4, 3, 2, 1];
   const rowNotes = [
@@ -308,13 +493,161 @@ function App() {
   };
 
   const connectInstrument = (inst) => {
+    // Build FX chain based on enabled effects
+    const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
+    
+    if (enabledFX.length === 0) {
+      // No FX enabled, connect directly to analyzer/destination
+      if (analyzerRef.current) {
+        inst.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        inst.toDestination();
+      }
+      return;
+    }
+
+    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer -> destination
+    let lastNode = inst;
+    
+    enabledFX.forEach(([pedalKey, state]) => {
+      const effect = createOrUpdateFX(pedalKey, state.params);
+      if (effect) {
+        lastNode.connect(effect);
+        lastNode = effect;
+      }
+    });
+    
+    // Connect last FX to analyzer or destination
     if (analyzerRef.current) {
-      inst.connect(analyzerRef.current);
+      lastNode.connect(analyzerRef.current);
       analyzerRef.current.toDestination();
     } else {
-      inst.toDestination();
+      lastNode.toDestination();
     }
   };
+
+  // Create or update FX effect based on pedal type
+  const createOrUpdateFX = (pedalKey, params) => {
+    const pedal = FX_PEDALS[pedalKey];
+    if (!pedal) return null;
+
+    let effect = fxRefs.current[pedalKey];
+    const needsUpdate = effect !== null;
+
+    try {
+      switch (pedalKey) {
+        case 'chorus':
+          if (!effect) {
+            effect = new Tone.Chorus(params.frequency, params.delay, params.depth);
+          } else {
+            effect.frequency.value = params.frequency;
+            effect.delayTime = params.delay;
+            effect.depth = params.depth;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'delay':
+          if (!effect) {
+            effect = new Tone.FeedbackDelay(params.delayTime, params.feedback);
+          } else {
+            effect.delayTime.value = params.delayTime;
+            effect.feedback.value = params.feedback;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'reverb':
+          if (!effect) {
+            effect = new Tone.Reverb({ decay: params.decay });
+          } else {
+            effect.decay = params.decay;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'overdrive':
+          if (!effect) {
+            effect = new Tone.Distortion(params.distortion);
+          } else {
+            effect.distortion = params.distortion;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'distortion':
+          if (!effect) {
+            effect = new Tone.BitCrusher(params.bits);
+          } else {
+            effect.bits = params.bits;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'sustain':
+          if (!effect) {
+            effect = new Tone.Compressor(params.threshold, params.ratio);
+            effect.attack.value = params.attack;
+            effect.release.value = params.release;
+          } else {
+            effect.threshold.value = params.threshold;
+            effect.ratio.value = params.ratio;
+            effect.attack.value = params.attack;
+            effect.release.value = params.release;
+          }
+          break;
+
+        default:
+          return null;
+      }
+
+      fxRefs.current[pedalKey] = effect;
+      return effect;
+    } catch (err) {
+      console.warn(`FX error for ${pedalKey}:`, err);
+      return null;
+    }
+  };
+
+  // Update FX when state changes
+  useEffect(() => {
+    if (!instrumentRef.current) return;
+
+    // Reconnect instrument with new FX settings
+    const inst = instrumentRef.current;
+    
+    // Disconnect all connections
+    inst.disconnect();
+    
+    // Rebuild the FX chain
+    const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
+    
+    if (enabledFX.length === 0) {
+      if (analyzerRef.current) {
+        inst.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        inst.toDestination();
+      }
+    } else {
+      let lastNode = inst;
+      enabledFX.forEach(([pedalKey, state]) => {
+        const effect = createOrUpdateFX(pedalKey, state.params);
+        if (effect) {
+          lastNode.connect(effect);
+          lastNode = effect;
+        }
+      });
+      
+      if (analyzerRef.current) {
+        lastNode.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        lastNode.toDestination();
+      }
+    }
+  }, [fxState]);
 
   const setupInstrument = (type) => {
     disposeInstrument();
@@ -534,6 +867,14 @@ function App() {
                 {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               </button>
 
+              <button
+                onClick={() => setFxModalOpen(true)}
+                className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
+                aria-label="Open FX pedals"
+              >
+                FX Pedals
+              </button>
+
             </div>
           </div>
         </header>
@@ -657,6 +998,14 @@ function App() {
         current={instrumentType}
         onSelect={handleInstrumentChange}
         onClose={() => setPickerOpen(false)}
+      />
+    )}
+
+    {fxModalOpen && (
+      <FXPedalModal
+        fxState={fxState}
+        setFxState={setFxState}
+        onClose={() => setFxModalOpen(false)}
       />
     )}
     </>

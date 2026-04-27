@@ -464,6 +464,7 @@ function App() {
   const activePointersRef = useRef(new Map());
   const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
+  const pointerDragStateRef = useRef({ isDragging: false, startNoteId: null, startPointerId: null });
 
   // FX effect refs
   const fxRefs = useRef({
@@ -1110,11 +1111,13 @@ function App() {
     decrementActiveNote(noteId);
   };
 
-  const attackNoteForPointer = async (pointerId, noteName, targetOctave) => {
+  const attackNoteForPointer = async (pointerId, noteName, targetOctave, recordToSequencer = true) => {
     if (!instrumentRef.current) return;
 
     const noteId = getNoteId(noteName, targetOctave);
-    sequencer.recordStep(noteId);
+    if (recordToSequencer) {
+      sequencer.recordStep(noteId);
+    }
     pendingPointerNotesRef.current.set(pointerId, noteId);
 
     await ensureAudioReady();
@@ -1295,6 +1298,80 @@ function App() {
               className={`relative z-0 flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
               role="grid"
               aria-label="Octave note grid"
+              style={{ touchAction: 'none' }}
+              onPointerMove={(event) => {
+                // Handle dragging across notes in the entire grid
+                if (!pointerDragStateRef.current.isDragging) return;
+                
+                const target = event.target.closest('button[data-note-id]');
+                if (!target) return;
+                
+                const newNoteId = target.getAttribute('data-note-id');
+                const currentNoteId = activePointersRef.current.get(pointerDragStateRef.current.startPointerId);
+                
+                // Only switch notes if we're on a different note
+                if (newNoteId && newNoteId !== currentNoteId) {
+                  // Release the current note
+                  if (currentNoteId) {
+                    doRelease(currentNoteId);
+                    decrementActiveNote(currentNoteId);
+                  }
+                  
+                  // Parse the new note info and attack it
+                  const match = newNoteId.match(/^([A-Ga-gb]+)(\d+)$/);
+                  if (match) {
+                    const [, noteName, octave] = match;
+                    // Convert flat notation if needed
+                    const normalizedNote = noteName.replace(/b/g, 'b').replace(/s/g, '#');
+                    attackNoteForPointer(pointerDragStateRef.current.startPointerId, normalizedNote, parseInt(octave, 10), false);
+                  }
+                }
+              }}
+              onPointerUp={(event) => {
+                // Handle pointer release anywhere in the grid
+                if (pointerDragStateRef.current.isDragging) {
+                  releaseNoteForPointer(pointerDragStateRef.current.startPointerId);
+                  pointerDragStateRef.current = { isDragging: false, startNoteId: null, startPointerId: null };
+                }
+              }}
+              onPointerCancel={(event) => {
+                if (pointerDragStateRef.current.isDragging) {
+                  releaseNoteForPointer(pointerDragStateRef.current.startPointerId);
+                  pointerDragStateRef.current = { isDragging: false, startNoteId: null, startPointerId: null };
+                }
+              }}
+              onTouchMove={(event) => {
+                // Explicit touch move handler for better touch support
+                if (!pointerDragStateRef.current.isDragging) return;
+                
+                const touch = event.touches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const button = target?.closest('button[data-note-id]');
+                if (!button) return;
+                
+                const newNoteId = button.getAttribute('data-note-id');
+                const currentNoteId = activePointersRef.current.get(pointerDragStateRef.current.startPointerId);
+                
+                if (newNoteId && newNoteId !== currentNoteId) {
+                  if (currentNoteId) {
+                    doRelease(currentNoteId);
+                    decrementActiveNote(currentNoteId);
+                  }
+                  
+                  const match = newNoteId.match(/^([A-Ga-gb]+)(\d+)$/);
+                  if (match) {
+                    const [, noteName, octave] = match;
+                    const normalizedNote = noteName.replace(/b/g, 'b').replace(/s/g, '#');
+                    attackNoteForPointer(pointerDragStateRef.current.startPointerId, normalizedNote, parseInt(octave, 10), false);
+                  }
+                }
+              }}
+              onTouchEnd={(event) => {
+                if (pointerDragStateRef.current.isDragging) {
+                  releaseNoteForPointer(pointerDragStateRef.current.startPointerId);
+                  pointerDragStateRef.current = { isDragging: false, startNoteId: null, startPointerId: null };
+                }
+              }}
             >
               <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
                 {octaves.map((rowOctave) => (
@@ -1327,6 +1404,7 @@ function App() {
                         return (
                           <button
                             data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
+                            data-note-id={noteId}
                             key={`note-${note}-${rowOctave}-${offset}`}
                             disabled={disabled}
                             className={[
@@ -1339,24 +1417,27 @@ function App() {
                                 ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
                                 : 'border-white/20 shadow-black/40',
                             ].join(' ')}
+                            style={{ touchAction: 'none' }}
                             onPointerDown={async (event) => {
                               if (disabled) return;
-                              event.currentTarget.setPointerCapture(event.pointerId);
+                              // Don't use setPointerCapture - we need to track movement across buttons
+                              pointerDragStateRef.current = { isDragging: true, startNoteId: noteId, startPointerId: event.pointerId };
                               await attackNoteForPointer(event.pointerId, note, noteOctave);
                             }}
                             onPointerUp={(event) => {
                               if (disabled) return;
                               releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
+                              pointerDragStateRef.current = { isDragging: false, startNoteId: null, startPointerId: null };
                             }}
                             onPointerCancel={(event) => {
                               if (disabled) return;
                               releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
+                              pointerDragStateRef.current = { isDragging: false, startNoteId: null, startPointerId: null };
+                            }}
+                            onPointerLeave={(event) => {
+                              // Handle pointer leaving the button while dragging
+                              if (disabled || !pointerDragStateRef.current.isDragging) return;
+                              // Let the container handle the drag to neighboring notes
                             }}
                           >
                             <span className="relative z-10 flex h-full items-center justify-center">

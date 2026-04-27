@@ -4,6 +4,7 @@ html,
 body,
 #root {
   min-height: 100%;
+  touch-action: none;
 }
 
 body {
@@ -22,4 +23,5 @@ h1 {
 
 * {
   -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }

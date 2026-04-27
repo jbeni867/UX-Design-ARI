@@ -1,5 +1,67 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
+import Shepherd from 'shepherd.js';
+import 'shepherd.js/dist/css/shepherd.css';
+// Use global window.lamejs loaded from public/lame.min.js
+
+async function encodeToMp3(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  
+  // Wrap decodeAudioData in a Promise to support both older and newer browser implementations
+  const audioBuffer = await new Promise((resolve, reject) => {
+    const result = audioContext.decodeAudioData(arrayBuffer, resolve, reject);
+    if (result instanceof Promise) {
+      result.catch(reject);
+    }
+  });
+
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new window.lamejs.Mp3Encoder(numChannels, sampleRate, 128); // 128 kbps
+
+  const left = audioBuffer.getChannelData(0);
+  const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left;
+
+  const convertFloatToInt16 = (buffer) => {
+    let l = buffer.length;
+    let buf = new Int16Array(l);
+    while (l--) {
+      let s = Math.max(-1, Math.min(1, buffer[l]));
+      buf[l] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return buf;
+  };
+
+  const left16 = convertFloatToInt16(left);
+  const right16 = convertFloatToInt16(right);
+
+  const sampleBlockSize = 1152;
+  const mp3Data = [];
+
+  for (let i = 0; i < audioBuffer.length; i += sampleBlockSize) {
+    const leftChunk = left16.subarray(i, i + sampleBlockSize);
+    const rightChunk = right16.subarray(i, i + sampleBlockSize);
+
+    let mp3buf;
+    if (numChannels >= 2) {
+      mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
+    } else {
+      mp3buf = encoder.encodeBuffer(leftChunk);
+    }
+
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  const mp3buf = encoder.flush();
+  if (mp3buf.length > 0) {
+    mp3Data.push(mp3buf);
+  }
+
+  return new Blob(mp3Data, { type: 'audio/mp3' });
+}
 
 
 const NOTE_ORDER = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -102,6 +164,14 @@ const SAMPLER_CONFIGS = {
     urls: makeSamplerUrls(['C5','C6','C7','C8','G4','G5','G6','G7']),
     baseUrl: `${import.meta.env.BASE_URL}samples/xylophone/`,
   },
+  trumpet: {
+    urls: makeSamplerUrls(['A3','A5','As4','C4','C6','D5','Ds4','F3','F4','F5','G4']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trumpet/`,
+  },
+  trombone: {
+    urls: makeSamplerUrls(['As1','As2','As3','C3','C4','Cs2','Cs4','D3','D4','Ds2','Ds3','Ds4','F2','F3','F4','Gs2','Gs3']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trombone/`,
+  },
 };
 
 // All available instrument options
@@ -114,9 +184,11 @@ const INSTRUMENT_OPTIONS = [
   { value: 'flute',           label: 'Flute',             isSampler: true  },
   { value: 'violin',          label: 'Violin',            isSampler: true  },
   { value: 'xylophone',       label: 'Xylophone',         isSampler: true  },
+  { value: 'trumpet',       label: 'Trumpet',         isSampler: true  },
+  { value: 'trombone',       label: 'Trombone',         isSampler: true  },
 ];
 
-function InstrumentPickerModal({ current, onSelect, onClose }) {
+function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked }) {
   const synths = INSTRUMENT_OPTIONS.filter((o) => !o.isSampler);
   const samplers = INSTRUMENT_OPTIONS.filter((o) => o.isSampler);
 
@@ -125,7 +197,7 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 p-5 shadow-2xl">
+      <div data-tutorial="instrument-modal" className="w-full max-w-sm rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900/85 to-slate-800/85 p-5 shadow-2xl backdrop-blur-md">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-black tracking-tight text-cyan-300">Select Instrument</h2>
           <button
@@ -142,7 +214,13 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
           {synths.map((o) => (
             <button
               key={o.value}
-              onClick={() => { onSelect(o.value); onClose(); }}
+              onClick={() => {
+                onSelect(o.value);
+                onClose();
+                if (onInstrumentPicked) {
+                  onInstrumentPicked();
+                }
+              }}
               className={[
                 'rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-150',
                 current === o.value
@@ -161,7 +239,13 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
           {samplers.map((o) => (
             <button
               key={o.value}
-              onClick={() => { onSelect(o.value); onClose(); }}
+              onClick={() => {
+                onSelect(o.value);
+                onClose();
+                if (onInstrumentPicked) {
+                  onInstrumentPicked();
+                }
+              }}
               className={[
                 'rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-150',
                 current === o.value
@@ -348,7 +432,9 @@ function App() {
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [fxModalOpen, setFxModalOpen] = useState(false);
+  const [recordingState, setRecordingState] = useState('idle');
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
@@ -366,9 +452,13 @@ function App() {
 
 
   const instrumentRef = useRef(null);
+  const pianoFxRef = useRef(null);
   const gridPanelRef = useRef(null);
+  const optionsMenuRef = useRef(null);
+  const tutorialRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
+  const recorderRef = useRef(null);
   const activePointersRef = useRef(new Map());
   const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
@@ -401,14 +491,24 @@ function App() {
 
   const octaveGridTemplateRows = `repeat(${octaves.length}, minmax(0, 1fr))`;
 
-  useEffect(() => {
+
+
+    useEffect(() => {
     if (!analyzerRef.current) {
       analyzerRef.current = new Tone.Analyser('waveform', 256);
     }
+    if (!recorderRef.current) {
+      recorderRef.current = new Tone.Recorder();
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setupInstrument(instrumentType);
 
     return () => {
       disposeInstrument();
+      if (tutorialRef.current) {
+        tutorialRef.current.cancel();
+        tutorialRef.current = null;
+      }
     };
   }, []);
 
@@ -424,6 +524,24 @@ function App() {
     return () => {
       document.removeEventListener('fullscreenchange', syncFullscreenState);
       document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (tutorialRef.current) {
+        return;
+      }
+
+      if (!optionsMenuRef.current) return;
+      if (!optionsMenuRef.current.contains(event.target)) {
+        setOptionsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
     };
   }, []);
 
@@ -448,6 +566,176 @@ function App() {
     } catch (err) {
       console.warn('Fullscreen toggle failed:', err);
     }
+  };
+
+  const handleTutorialLaunch = () => {
+    setOptionsOpen(false);
+    window.setTimeout(() => {
+      void startTutorial();
+    }, 0);
+  };
+
+  const startTutorial = async () => {
+    if (tutorialRef.current) {
+      tutorialRef.current.cancel();
+      tutorialRef.current = null;
+    }
+
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+
+    setPickerOpen(false);
+    setOptionsOpen(false);
+    setHideUnusedNotes(false);
+    setSelectedScale('major');
+    setSelectedKey('C');
+
+    const setTutorialContainers = (container) => {
+      tour.options.stepsContainer = container;
+      tour.options.modalContainer = container;
+    };
+
+    const tutorialContainer = document.body;
+
+    const tour = new Shepherd.Tour({
+      useModalOverlay: true,
+      stepsContainer: tutorialContainer,
+      modalContainer: tutorialContainer,
+      defaultStepOptions: {
+        scrollTo: { behavior: 'smooth', block: 'center' },
+        cancelIcon: { enabled: true },
+        classes: 'shadow-2xl',
+      },
+    });
+
+    const nextButton = { text: 'Next', action: tour.next };
+    const backButton = { text: 'Back', action: tour.back };
+
+    tour.addStep({
+      id: 'welcome',
+      title: 'Welcome To ARI',
+      text: 'This tutorial covers navigation: octaves and notes, instruments, recording, scales/key, hide unused notes, and fullscreen controls.',
+      attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
+      buttons: [nextButton],
+    });
+
+    tour.addStep({
+      id: 'octaves',
+      title: 'Octave Axis (Vertical)',
+      text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
+      attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'notes',
+      title: 'Note Axis (Horizontal)',
+      text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
+      attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'instrument-trigger',
+      title: 'Change Instruments',
+      text: 'Use this control to open the instrument picker and switch between synths and sampled instruments.',
+      attachTo: { element: '[data-tutorial="instrument-button"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'instrument-picker',
+      title: 'Instrument Picker',
+      text: 'Pick any instrument here. You can choose from synth engines or realistic sampled instruments. The tutorial advances as soon as you choose one.',
+      attachTo: { element: '[data-tutorial="instrument-modal"]', on: 'right' },
+      beforeShowPromise: () => {
+        setPickerOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 150));
+      },
+      buttons: [backButton],
+    });
+
+    tour.addStep({
+      id: 'record-song',
+      title: 'Record A Song',
+      text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
+      attachTo: { element: '[data-tutorial="record-button"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'scale-and-key',
+      title: 'Scale And Key (Major/Minor)',
+      text: 'Choose a scale (Major, Minor, Pentatonic, or Chromatic) and choose a key/root note. This controls which notes are considered in-scale.',
+      attachTo: { element: '[data-tutorial="scale-controls"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'options-menu-button',
+      title: 'Options Menu',
+      text: 'This button opens the Options menu, where you can hide unused notes and reopen the tutorial later.',
+      attachTo: { element: '[data-tutorial="options-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(false);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'hide-unused',
+      title: 'Hide Unused Notes',
+      text: 'This removes notes outside your selected scale and makes the remaining buttons larger, which is especially helpful on mobile.',
+      attachTo: { element: '[data-tutorial="hide-unused-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'tutorial-menu-item',
+      title: 'Tutorial Button',
+      text: 'This button reopens the tutorial anytime from the Options menu.',
+      attachTo: { element: '[data-tutorial="tutorial-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [
+        backButton,
+        {
+          text: 'Finish',
+          action: tour.complete,
+        },
+      ],
+    });
+
+    tour.on('cancel', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    tour.on('complete', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    tutorialRef.current = tour;
+    tour.start();
   };
 
 
@@ -481,6 +769,15 @@ function App() {
         // ignore disposal errors
       }
       instrumentRef.current = null;
+    }
+    if (pianoFxRef.current) {
+      try {
+        pianoFxRef.current.reverb.dispose();
+        pianoFxRef.current.compressor.dispose();
+      } catch {
+        // ignore
+      }
+      pianoFxRef.current = null;
     }
   };
 
@@ -668,7 +965,25 @@ function App() {
         onload: () => { setSamplerLoading(false); resolveReady(); },
         onerror: (err) => { console.warn('Sampler file error:', err); resolveReady(); },
       });
-      connectInstrument(sampler);
+      const SAMPLER_FX = {
+        piano:           { decay: 1.8, preDelay: 0.01, wet: 0.30, threshold: -18, ratio: 3,   attack: 0.02, release: 0.25 },
+        'guitar-acoustic': { decay: 1.2, preDelay: 0.01, wet: 0.22, threshold: -20, ratio: 3,   attack: 0.01, release: 0.20 },
+        flute:           { decay: 2.4, preDelay: 0.02, wet: 0.35, threshold: -22, ratio: 2.5, attack: 0.03, release: 0.30 },
+        violin:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+        xylophone:       { decay: 0.8, preDelay: 0.005,wet: 0.20, threshold: -16, ratio: 4,   attack: 0.005,release: 0.15 },
+        trumpet:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+        trombone:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+      };
+      let fx = null;
+      const fxConfig = SAMPLER_FX[type];
+      if (fxConfig) {
+        const reverb = new Tone.Reverb({ decay: fxConfig.decay, preDelay: fxConfig.preDelay, wet: fxConfig.wet });
+        const compressor = new Tone.Compressor({ threshold: fxConfig.threshold, ratio: fxConfig.ratio, attack: fxConfig.attack, release: fxConfig.release });
+        reverb.connect(compressor);
+        pianoFxRef.current = { reverb, compressor };
+        fx = pianoFxRef.current;
+      }
+      connectInstrument(sampler, fx);
       instrumentRef.current = sampler;
     } else {
       samplerReadyRef.current = Promise.resolve();
@@ -690,6 +1005,56 @@ function App() {
       instrumentRef.current = newSynth;
     }
   };
+  const handleRecordPauseToggle = async () => {
+    if (!recorderRef.current) return;
+    
+    if (recordingState === 'idle') {
+      await ensureAudioReady();
+      recorderRef.current.start();
+      setRecordingState('recording');
+    } else if (recordingState === 'recording') {
+      if (typeof recorderRef.current.pause === 'function') {
+        recorderRef.current.pause();
+      }
+      setRecordingState('paused');
+    } else if (recordingState === 'paused') {
+      // Tone.js uses start() to resume, but we don't await it because
+      // its internal promise incorrectly waits for a 'start' event instead of 'resume',
+      // causing it to hang indefinitely.
+      recorderRef.current.start().catch((err) => console.warn('Resume error:', err));
+      setRecordingState('recording');
+    }
+  };
+
+  const handleEndRecording = async () => {
+    if (!recorderRef.current || recordingState === 'idle') return;
+    
+    // Immediately set a loading state so the UI updates
+    setRecordingState('processing');
+    
+    try {
+      const recording = await recorderRef.current.stop();
+      
+      if (recording.size < 500) {
+        throw new Error('Recording is too short or empty. Please ensure audio was playing.');
+      }
+      
+      const mp3Blob = await encodeToMp3(recording);
+      
+      const url = URL.createObjectURL(mp3Blob);
+      const anchor = document.createElement('a');
+      anchor.download = 'ari-recording.mp3';
+      anchor.href = url;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error during recording end:', err);
+      alert('Error during recording: ' + (err.message || 'Unable to encode audio.'));
+    } finally {
+      setRecordingState('idle');
+    }
+  };
+
 
   const handleInstrumentChange = (newType) => {
     setInstrumentType(newType);
@@ -777,7 +1142,7 @@ function App() {
     <main className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-900 px-2 py-2 text-slate-100 sm:px-4 sm:py-4">
       <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col gap-3">
         {/* Header Bar */}
-        <header className="shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
+        <header data-tutorial="app-header" className="relative isolate z-50 shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-[220px] items-center gap-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
@@ -813,6 +1178,7 @@ function App() {
               <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">Instrument</span>
                 <button
+                  data-tutorial="instrument-button"
                   onClick={() => setPickerOpen(true)}
                   className="cursor-pointer rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
@@ -820,7 +1186,29 @@ function App() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {recordingState !== 'idle' && (
+                  <button
+                    onClick={handleEndRecording}
+                    className="cursor-pointer rounded-xl border border-slate-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg backdrop-blur transition-all duration-200 hover:border-slate-400/50 hover:bg-slate-700/80"
+                  >
+                    End Recording
+                  </button>
+                )}
+                <button
+                  data-tutorial="record-button"
+                  onClick={handleRecordPauseToggle}
+                  className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur transition-all duration-200 ${
+                    recordingState === 'recording'
+                      ? 'animate-pulse border-red-400 bg-red-500 text-white hover:bg-red-400'
+                      : 'border-red-600 bg-red-600 text-white hover:bg-red-500'
+                  }`}
+                >
+                  {recordingState === 'recording' ? 'Pause' : 'Record'}
+                </button>
+              </div>
+
+              <div data-tutorial="scale-controls" className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
                   Scale
                 </span>
@@ -851,20 +1239,38 @@ function App() {
                 </select>
               </div>
 
-              <button
-                onClick={() => setHideUnusedNotes(!hideUnusedNotes)}
-                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-              >
-                {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
-              </button>
+              <div ref={optionsMenuRef} className="relative" data-tutorial="options-menu">
+                <button
+                  data-tutorial="options-button"
+                  onClick={() => setOptionsOpen((prev) => !prev)}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                >
+                  Options
+                </button>
 
-              <button
-                onClick={toggleGridFullscreen}
-                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
-              >
-                {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-              </button>
+                {optionsOpen && (
+                  <div className="absolute right-0 z-[999] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
+                    <button
+                      data-tutorial="hide-unused-button"
+                      onClick={() => {
+                        setHideUnusedNotes(!hideUnusedNotes);
+                        setOptionsOpen(false);
+                      }}
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
+                    </button>
+
+                    <button
+                      data-tutorial="tutorial-button"
+                      onClick={handleTutorialLaunch}
+                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      Tutorial
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={() => setFxModalOpen(true)}
@@ -881,7 +1287,7 @@ function App() {
             {/* Note Grid */}
             <section
               ref={gridPanelRef}
-              className={`flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
+              className={`relative z-0 flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
               role="grid"
               aria-label="Octave note grid"
             >
@@ -893,7 +1299,7 @@ function App() {
                     key={rowOctave}
                   >
                     {/* Octave Label */}
-                    <div className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
+                    <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
                       OCT {rowOctave}
                     </div>
 
@@ -915,6 +1321,7 @@ function App() {
 
                         return (
                           <button
+                            data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
                             key={`note-${note}-${rowOctave}-${offset}`}
                             disabled={disabled}
                             className={[
@@ -967,6 +1374,7 @@ function App() {
               {/* Note Axis Labels */}
               <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
                 <button
+                  data-tutorial="fullscreen-button"
                   onClick={toggleGridFullscreen}
                   className="rounded-none border border-white/20 bg-slate-800/80 px-1 py-1 text-[clamp(10px,1.1vw,12px)] font-bold tracking-wide text-cyan-200 shadow-lg transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                   aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
@@ -997,6 +1405,14 @@ function App() {
         current={instrumentType}
         onSelect={handleInstrumentChange}
         onClose={() => setPickerOpen(false)}
+        onInstrumentPicked={() => {
+          const currentStep = tutorialRef.current?.getCurrentStep?.();
+          if (currentStep?.id === 'instrument-picker') {
+            setTimeout(() => {
+              tutorialRef.current?.next?.();
+            }, 50);
+          }
+        }}
       />
     )}
 

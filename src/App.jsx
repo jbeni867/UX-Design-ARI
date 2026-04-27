@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
+import Shepherd from 'shepherd.js';
+import 'shepherd.js/dist/css/shepherd.css';
+import { useStepSequencer, SequencerControls } from './useStepSequencer';
 // Use global window.lamejs loaded from public/lame.min.js
 
 async function encodeToMp3(blob) {
@@ -162,6 +165,14 @@ const SAMPLER_CONFIGS = {
     urls: makeSamplerUrls(['C5','C6','C7','C8','G4','G5','G6','G7']),
     baseUrl: `${import.meta.env.BASE_URL}samples/xylophone/`,
   },
+  trumpet: {
+    urls: makeSamplerUrls(['A3','A5','As4','C4','C6','D5','Ds4','F3','F4','F5','G4']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trumpet/`,
+  },
+  trombone: {
+    urls: makeSamplerUrls(['As1','As2','As3','C3','C4','Cs2','Cs4','D3','D4','Ds2','Ds3','Ds4','F2','F3','F4','Gs2','Gs3']),
+    baseUrl: `${import.meta.env.BASE_URL}samples/trombone/`,
+  },
 };
 
 // All available instrument options
@@ -174,9 +185,11 @@ const INSTRUMENT_OPTIONS = [
   { value: 'flute',           label: 'Flute',             isSampler: true  },
   { value: 'violin',          label: 'Violin',            isSampler: true  },
   { value: 'xylophone',       label: 'Xylophone',         isSampler: true  },
+  { value: 'trumpet',       label: 'Trumpet',         isSampler: true  },
+  { value: 'trombone',       label: 'Trombone',         isSampler: true  },
 ];
 
-function InstrumentPickerModal({ current, onSelect, onClose }) {
+function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked }) {
   const synths = INSTRUMENT_OPTIONS.filter((o) => !o.isSampler);
   const samplers = INSTRUMENT_OPTIONS.filter((o) => o.isSampler);
 
@@ -185,7 +198,7 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 p-5 shadow-2xl">
+      <div data-tutorial="instrument-modal" className="w-full max-w-sm rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900/85 to-slate-800/85 p-5 shadow-2xl backdrop-blur-md">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-black tracking-tight text-cyan-300">Select Instrument</h2>
           <button
@@ -202,7 +215,13 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
           {synths.map((o) => (
             <button
               key={o.value}
-              onClick={() => { onSelect(o.value); onClose(); }}
+              onClick={() => {
+                onSelect(o.value);
+                onClose();
+                if (onInstrumentPicked) {
+                  onInstrumentPicked();
+                }
+              }}
               className={[
                 'rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-150',
                 current === o.value
@@ -221,7 +240,13 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
           {samplers.map((o) => (
             <button
               key={o.value}
-              onClick={() => { onSelect(o.value); onClose(); }}
+              onClick={() => {
+                onSelect(o.value);
+                onClose();
+                if (onInstrumentPicked) {
+                  onInstrumentPicked();
+                }
+              }}
               className={[
                 'rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-150',
                 current === o.value
@@ -238,29 +263,217 @@ function InstrumentPickerModal({ current, onSelect, onClose }) {
   );
 }
 
+// FX Pedal definitions with Tone.js effect classes and default parameters
+const FX_PEDALS = {
+  chorus: {
+    label: 'Chorus',
+    effectClass: 'Chorus',
+    color: 'cyan',
+    params: {
+      frequency: { min: 0.1, max: 10, step: 0.1, default: 4, label: 'Frequency (Hz)' },
+      delay: { min: 0, max: 10, step: 0.1, default: 2.5, label: 'Delay (ms)' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Depth' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  delay: {
+    label: 'Delay',
+    effectClass: 'DelayFeedback',
+    color: 'blue',
+    params: {
+      delayTime: { min: 0.01, max: 1, step: 0.01, default: 0.25, label: 'Time (s)' },
+      feedback: { min: 0, max: 0.95, step: 0.01, default: 0.3, label: 'Feedback' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix' },
+    },
+  },
+  reverb: {
+    label: 'Reverb',
+    effectClass: 'Reverb',
+    color: 'purple',
+    params: {
+      decay: { min: 0.1, max: 10, step: 0.1, default: 2.5, label: 'Decay (s)' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix' },
+    },
+  },
+  overdrive: {
+    label: 'Overdrive',
+    effectClass: 'Distortion',
+    color: 'orange',
+    params: {
+      distortion: { min: 0, max: 1, step: 0.01, default: 0.4, label: 'Drive' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  distortion: {
+    label: 'Distortion',
+    effectClass: 'BitCrusher',
+    color: 'red',
+    params: {
+      bits: { min: 1, max: 8, step: 1, default: 4, label: 'Bits' },
+      wet: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix' },
+    },
+  },
+  sustain: {
+    label: 'Sustain',
+    effectClass: 'Compressor',
+    color: 'green',
+    params: {
+      threshold: { min: -60, max: 0, step: 1, default: -24, label: 'Threshold (dB)' },
+      ratio: { min: 1, max: 20, step: 0.5, default: 4, label: 'Ratio' },
+      attack: { min: 0, max: 1, step: 0.01, default: 0.003, label: 'Attack (s)' },
+      release: { min: 0, max: 1, step: 0.01, default: 0.25, label: 'Release (s)' },
+    },
+  },
+};
+
+function FXPedalModal({ fxState, setFxState, onClose }) {
+  const handleToggle = (pedalKey) => {
+    setFxState((prev) => ({
+      ...prev,
+      [pedalKey]: { ...prev[pedalKey], enabled: !prev[pedalKey].enabled },
+    }));
+  };
+
+  const handleParamChange = (pedalKey, paramKey, value) => {
+    setFxState((prev) => ({
+      ...prev,
+      [pedalKey]: { ...prev[pedalKey], params: { ...prev[pedalKey].params, [paramKey]: parseFloat(value) } },
+    }));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-black tracking-tight text-cyan-300">FX Pedals</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(FX_PEDALS).map(([pedalKey, pedal]) => {
+            const state = fxState[pedalKey];
+            const isEnabled = state?.enabled ?? false;
+            const colorMap = {
+              cyan: 'border-cyan-500/50 bg-cyan-500/10',
+              blue: 'border-blue-500/50 bg-blue-500/10',
+              purple: 'border-purple-500/50 bg-purple-500/10',
+              orange: 'border-orange-500/50 bg-orange-500/10',
+              red: 'border-red-500/50 bg-red-500/10',
+              green: 'border-emerald-500/50 bg-emerald-500/10',
+            };
+
+            return (
+              <div
+                key={pedalKey}
+                className={`rounded-xl border p-4 transition-all duration-200 ${
+                  isEnabled ? `${colorMap[pedal.color]} shadow-lg` : 'border-slate-600/50 bg-slate-800/40'
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className={`text-sm font-bold ${isEnabled ? `text-${pedal.color}-300` : 'text-slate-400'}`}>
+                    {pedal.label}
+                  </h3>
+                  <button
+                    onClick={() => handleToggle(pedalKey)}
+                    className="relative h-6 w-11 rounded-full transition-colors duration-200 bg-slate-600"
+                    style={{ backgroundColor: isEnabled ? '#06b6d4' : undefined }}
+                  >
+                    {isEnabled ? (
+                      <span className="absolute top-1 left-5 h-4 w-4 rounded-full bg-white shadow" />
+                    ) : (
+                      <span className="absolute top-1 left-0.5 h-4 w-4 rounded-full bg-white shadow" />
+                    )}
+                  </button>
+                </div>
+
+                {isEnabled && pedal.params && (
+                  <div className="space-y-3">
+                    {Object.entries(pedal.params).map(([paramKey, param]) => {
+                      const value = state?.params?.[paramKey] ?? param.default;
+                      return (
+                        <div key={paramKey} className="space-y-1">
+                          <label className="text-xs text-slate-400">
+                            {param.label}: {typeof value === 'number' ? value.toFixed(2) : value}
+                          </label>
+                          <input
+                            type="range"
+                            min={param.min}
+                            max={param.max}
+                            step={param.step}
+                            value={value}
+                            onChange={(e) => handleParamChange(pedalKey, paramKey, e.target.value)}
+                            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-600 accent-cyan-400"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [isReady, setIsReady] = useState(false);
   const [instrumentType, setInstrumentType] = useState('FMSynth');
   const [samplerLoading, setSamplerLoading] = useState(false);
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [fxModalOpen, setFxModalOpen] = useState(false);
   const [recordingState, setRecordingState] = useState('idle');
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
   const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
 
+  // FX state - each pedal has enabled flag and params
+  const [fxState, setFxState] = useState({
+    chorus: { enabled: false, params: { frequency: 4, delay: 2.5, depth: 0.5, wet: 0.5 } },
+    delay: { enabled: false, params: { delayTime: 0.25, feedback: 0.3, wet: 0.3 } },
+    reverb: { enabled: false, params: { decay: 2.5, wet: 0.3 } },
+    overdrive: { enabled: false, params: { distortion: 0.4, wet: 0.5 } },
+    distortion: { enabled: false, params: { bits: 4, wet: 0.5 } },
+    sustain: { enabled: false, params: { threshold: -24, ratio: 4, attack: 0.003, release: 0.25 } },
+  });
+
 
   const instrumentRef = useRef(null);
+  const sequencer = useStepSequencer(instrumentRef);
   const pianoFxRef = useRef(null);
   const gridPanelRef = useRef(null);
+  const optionsMenuRef = useRef(null);
+  const tutorialRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
   const recorderRef = useRef(null);
   const activePointersRef = useRef(new Map());
   const pendingPointerNotesRef = useRef(new Map());
   const activeNoteCountsRef = useRef(new Map());
+
+  // FX effect refs
+  const fxRefs = useRef({
+    chorus: null,
+    delay: null,
+    reverb: null,
+    overdrive: null,
+    distortion: null,
+    sustain: null,
+  });
 
   const octaves = [7, 6, 5, 4, 3, 2, 1];
   const rowNotes = [
@@ -294,6 +507,10 @@ function App() {
 
     return () => {
       disposeInstrument();
+      if (tutorialRef.current) {
+        tutorialRef.current.cancel();
+        tutorialRef.current = null;
+      }
     };
   }, []);
 
@@ -309,6 +526,24 @@ function App() {
     return () => {
       document.removeEventListener('fullscreenchange', syncFullscreenState);
       document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (tutorialRef.current) {
+        return;
+      }
+
+      if (!optionsMenuRef.current) return;
+      if (!optionsMenuRef.current.contains(event.target)) {
+        setOptionsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
     };
   }, []);
 
@@ -333,6 +568,176 @@ function App() {
     } catch (err) {
       console.warn('Fullscreen toggle failed:', err);
     }
+  };
+
+  const handleTutorialLaunch = () => {
+    setOptionsOpen(false);
+    window.setTimeout(() => {
+      void startTutorial();
+    }, 0);
+  };
+
+  const startTutorial = async () => {
+    if (tutorialRef.current) {
+      tutorialRef.current.cancel();
+      tutorialRef.current = null;
+    }
+
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+
+    setPickerOpen(false);
+    setOptionsOpen(false);
+    setHideUnusedNotes(false);
+    setSelectedScale('major');
+    setSelectedKey('C');
+
+    const setTutorialContainers = (container) => {
+      tour.options.stepsContainer = container;
+      tour.options.modalContainer = container;
+    };
+
+    const tutorialContainer = document.body;
+
+    const tour = new Shepherd.Tour({
+      useModalOverlay: true,
+      stepsContainer: tutorialContainer,
+      modalContainer: tutorialContainer,
+      defaultStepOptions: {
+        scrollTo: { behavior: 'smooth', block: 'center' },
+        cancelIcon: { enabled: true },
+        classes: 'shadow-2xl',
+      },
+    });
+
+    const nextButton = { text: 'Next', action: tour.next };
+    const backButton = { text: 'Back', action: tour.back };
+
+    tour.addStep({
+      id: 'welcome',
+      title: 'Welcome To ARI',
+      text: 'This tutorial covers navigation: octaves and notes, instruments, recording, scales/key, hide unused notes, and fullscreen controls.',
+      attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
+      buttons: [nextButton],
+    });
+
+    tour.addStep({
+      id: 'octaves',
+      title: 'Octave Axis (Vertical)',
+      text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
+      attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'notes',
+      title: 'Note Axis (Horizontal)',
+      text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
+      attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'instrument-trigger',
+      title: 'Change Instruments',
+      text: 'Use this control to open the instrument picker and switch between synths and sampled instruments.',
+      attachTo: { element: '[data-tutorial="instrument-button"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'instrument-picker',
+      title: 'Instrument Picker',
+      text: 'Pick any instrument here. You can choose from synth engines or realistic sampled instruments. The tutorial advances as soon as you choose one.',
+      attachTo: { element: '[data-tutorial="instrument-modal"]', on: 'right' },
+      beforeShowPromise: () => {
+        setPickerOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 150));
+      },
+      buttons: [backButton],
+    });
+
+    tour.addStep({
+      id: 'record-song',
+      title: 'Record A Song',
+      text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
+      attachTo: { element: '[data-tutorial="record-button"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'scale-and-key',
+      title: 'Scale And Key (Major/Minor)',
+      text: 'Choose a scale (Major, Minor, Pentatonic, or Chromatic) and choose a key/root note. This controls which notes are considered in-scale.',
+      attachTo: { element: '[data-tutorial="scale-controls"]', on: 'bottom' },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'options-menu-button',
+      title: 'Options Menu',
+      text: 'This button opens the Options menu, where you can hide unused notes and reopen the tutorial later.',
+      attachTo: { element: '[data-tutorial="options-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(false);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'hide-unused',
+      title: 'Hide Unused Notes',
+      text: 'This removes notes outside your selected scale and makes the remaining buttons larger, which is especially helpful on mobile.',
+      attachTo: { element: '[data-tutorial="hide-unused-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'tutorial-menu-item',
+      title: 'Tutorial Button',
+      text: 'This button reopens the tutorial anytime from the Options menu.',
+      attachTo: { element: '[data-tutorial="tutorial-button"]', on: 'bottom' },
+      beforeShowPromise: () => {
+        setOptionsOpen(true);
+        return new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      buttons: [
+        backButton,
+        {
+          text: 'Finish',
+          action: tour.complete,
+        },
+      ],
+    });
+
+    tour.on('cancel', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    tour.on('complete', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    tutorialRef.current = tour;
+    tour.start();
   };
 
 
@@ -385,19 +790,162 @@ function App() {
     setIsReady(true);
   };
 
-  const connectInstrument = (inst, fx = null) => {
-    const source = fx ? fx.compressor : inst;
-    if (fx) inst.connect(fx.reverb);
+  const connectInstrument = (inst) => {
+    // Build FX chain based on enabled effects
+    const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
+    
+    if (enabledFX.length === 0) {
+      // No FX enabled, connect directly to analyzer/destination
+      if (analyzerRef.current) {
+        inst.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        inst.toDestination();
+      }
+      return;
+    }
+
+    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer -> destination
+    let lastNode = inst;
+    
+    enabledFX.forEach(([pedalKey, state]) => {
+      const effect = createOrUpdateFX(pedalKey, state.params);
+      if (effect) {
+        lastNode.connect(effect);
+        lastNode = effect;
+      }
+    });
+    
+    // Connect last FX to analyzer or destination
     if (analyzerRef.current) {
-      source.connect(analyzerRef.current);
+      lastNode.connect(analyzerRef.current);
       analyzerRef.current.toDestination();
     } else {
-      source.toDestination();
-    }
-    if (recorderRef.current) {
-      source.connect(recorderRef.current);
+      lastNode.toDestination();
     }
   };
+
+  // Create or update FX effect based on pedal type
+  const createOrUpdateFX = (pedalKey, params) => {
+    const pedal = FX_PEDALS[pedalKey];
+    if (!pedal) return null;
+
+    let effect = fxRefs.current[pedalKey];
+    const needsUpdate = effect !== null;
+
+    try {
+      switch (pedalKey) {
+        case 'chorus':
+          if (!effect) {
+            effect = new Tone.Chorus(params.frequency, params.delay, params.depth);
+          } else {
+            effect.frequency.value = params.frequency;
+            effect.delayTime = params.delay;
+            effect.depth = params.depth;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'delay':
+          if (!effect) {
+            effect = new Tone.FeedbackDelay(params.delayTime, params.feedback);
+          } else {
+            effect.delayTime.value = params.delayTime;
+            effect.feedback.value = params.feedback;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'reverb':
+          if (!effect) {
+            effect = new Tone.Reverb({ decay: params.decay });
+          } else {
+            effect.decay = params.decay;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'overdrive':
+          if (!effect) {
+            effect = new Tone.Distortion(params.distortion);
+          } else {
+            effect.distortion = params.distortion;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'distortion':
+          if (!effect) {
+            effect = new Tone.BitCrusher(params.bits);
+          } else {
+            effect.bits = params.bits;
+          }
+          effect.wet.value = params.wet;
+          break;
+
+        case 'sustain':
+          if (!effect) {
+            effect = new Tone.Compressor(params.threshold, params.ratio);
+            effect.attack.value = params.attack;
+            effect.release.value = params.release;
+          } else {
+            effect.threshold.value = params.threshold;
+            effect.ratio.value = params.ratio;
+            effect.attack.value = params.attack;
+            effect.release.value = params.release;
+          }
+          break;
+
+        default:
+          return null;
+      }
+
+      fxRefs.current[pedalKey] = effect;
+      return effect;
+    } catch (err) {
+      console.warn(`FX error for ${pedalKey}:`, err);
+      return null;
+    }
+  };
+
+  // Update FX when state changes
+  useEffect(() => {
+    if (!instrumentRef.current) return;
+
+    // Reconnect instrument with new FX settings
+    const inst = instrumentRef.current;
+    
+    // Disconnect all connections
+    inst.disconnect();
+    
+    // Rebuild the FX chain
+    const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
+    
+    if (enabledFX.length === 0) {
+      if (analyzerRef.current) {
+        inst.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        inst.toDestination();
+      }
+    } else {
+      let lastNode = inst;
+      enabledFX.forEach(([pedalKey, state]) => {
+        const effect = createOrUpdateFX(pedalKey, state.params);
+        if (effect) {
+          lastNode.connect(effect);
+          lastNode = effect;
+        }
+      });
+      
+      if (analyzerRef.current) {
+        lastNode.connect(analyzerRef.current);
+        analyzerRef.current.toDestination();
+      } else {
+        lastNode.toDestination();
+      }
+    }
+  }, [fxState]);
 
   const setupInstrument = (type) => {
     disposeInstrument();
@@ -425,6 +973,8 @@ function App() {
         flute:           { decay: 2.4, preDelay: 0.02, wet: 0.35, threshold: -22, ratio: 2.5, attack: 0.03, release: 0.30 },
         violin:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
         xylophone:       { decay: 0.8, preDelay: 0.005,wet: 0.20, threshold: -16, ratio: 4,   attack: 0.005,release: 0.15 },
+        trumpet:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
+        trombone:          { decay: 2.0, preDelay: 0.02, wet: 0.32, threshold: -20, ratio: 2.5, attack: 0.03, release: 0.30 },
       };
       let fx = null;
       const fxConfig = SAMPLER_FX[type];
@@ -564,6 +1114,7 @@ function App() {
     if (!instrumentRef.current) return;
 
     const noteId = getNoteId(noteName, targetOctave);
+    sequencer.recordStep(noteId);
     pendingPointerNotesRef.current.set(pointerId, noteId);
 
     await ensureAudioReady();
@@ -594,7 +1145,7 @@ function App() {
     <main className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-900 px-2 py-2 text-slate-100 sm:px-4 sm:py-4">
       <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col gap-3">
         {/* Header Bar */}
-        <header className="shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
+        <header data-tutorial="app-header" className="relative isolate z-50 shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-[220px] items-center gap-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
@@ -627,9 +1178,12 @@ function App() {
                 )}
               </div>
 
+              <SequencerControls sequencer={sequencer} />
+
               <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">Instrument</span>
                 <button
+                  data-tutorial="instrument-button"
                   onClick={() => setPickerOpen(true)}
                   className="cursor-pointer rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
@@ -647,6 +1201,7 @@ function App() {
                   </button>
                 )}
                 <button
+                  data-tutorial="record-button"
                   onClick={handleRecordPauseToggle}
                   className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur transition-all duration-200 ${
                     recordingState === 'recording'
@@ -658,7 +1213,7 @@ function App() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div data-tutorial="scale-controls" className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
                   Scale
                 </span>
@@ -689,19 +1244,45 @@ function App() {
                 </select>
               </div>
 
-              <button
-                onClick={() => setHideUnusedNotes(!hideUnusedNotes)}
-                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-              >
-                {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
-              </button>
+              <div ref={optionsMenuRef} className="relative" data-tutorial="options-menu">
+                <button
+                  data-tutorial="options-button"
+                  onClick={() => setOptionsOpen((prev) => !prev)}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                >
+                  Options
+                </button>
+
+                {optionsOpen && (
+                  <div className="absolute right-0 z-[999] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
+                    <button
+                      data-tutorial="hide-unused-button"
+                      onClick={() => {
+                        setHideUnusedNotes(!hideUnusedNotes);
+                        setOptionsOpen(false);
+                      }}
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
+                    </button>
+
+                    <button
+                      data-tutorial="tutorial-button"
+                      onClick={handleTutorialLaunch}
+                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      Tutorial
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
-                onClick={toggleGridFullscreen}
-                className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
+                onClick={() => setFxModalOpen(true)}
+                className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
+                aria-label="Open FX pedals"
               >
-                {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                FX Pedals
               </button>
 
             </div>
@@ -711,7 +1292,7 @@ function App() {
             {/* Note Grid */}
             <section
               ref={gridPanelRef}
-              className={`flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
+              className={`relative z-0 flex min-h-0 flex-1 flex-col gap-1.5 ${isGridFullscreen ? 'bg-black p-2 sm:p-3' : ''}`}
               role="grid"
               aria-label="Octave note grid"
             >
@@ -723,7 +1304,7 @@ function App() {
                     key={rowOctave}
                   >
                     {/* Octave Label */}
-                    <div className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
+                    <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
                       OCT {rowOctave}
                     </div>
 
@@ -745,6 +1326,7 @@ function App() {
 
                         return (
                           <button
+                            data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
                             key={`note-${note}-${rowOctave}-${offset}`}
                             disabled={disabled}
                             className={[
@@ -797,6 +1379,7 @@ function App() {
               {/* Note Axis Labels */}
               <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
                 <button
+                  data-tutorial="fullscreen-button"
                   onClick={toggleGridFullscreen}
                   className="rounded-none border border-white/20 bg-slate-800/80 px-1 py-1 text-[clamp(10px,1.1vw,12px)] font-bold tracking-wide text-cyan-200 shadow-lg transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                   aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
@@ -827,6 +1410,22 @@ function App() {
         current={instrumentType}
         onSelect={handleInstrumentChange}
         onClose={() => setPickerOpen(false)}
+        onInstrumentPicked={() => {
+          const currentStep = tutorialRef.current?.getCurrentStep?.();
+          if (currentStep?.id === 'instrument-picker') {
+            setTimeout(() => {
+              tutorialRef.current?.next?.();
+            }, 50);
+          }
+        }}
+      />
+    )}
+
+    {fxModalOpen && (
+      <FXPedalModal
+        fxState={fxState}
+        setFxState={setFxState}
+        onClose={() => setFxModalOpen(false)}
       />
     )}
     </>

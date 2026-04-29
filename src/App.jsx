@@ -459,6 +459,7 @@ function App() {
   const [selectedKey, setSelectedKey] = useState('C');
   const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
   const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'wheel'
+  const [gamepadActive, setGamepadActive] = useState(false);
 
   // FX state - each pedal has enabled flag and params
   const [fxState, setFxState] = useState({
@@ -545,6 +546,37 @@ function App() {
     return () => {
       document.removeEventListener('fullscreenchange', syncFullscreenState);
       document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkInitialGamepad = () => {
+      const already = Array.from(navigator.getGamepads?.() ?? []).find((g) => g?.connected);
+      if (already) {
+        setGamepadActive(true);
+        setLayoutMode('wheel');
+      }
+    };
+
+    const onConnect = () => {
+      setGamepadActive(true);
+      setLayoutMode('wheel');
+    };
+    const onDisconnect = () => {
+      const remaining = Array.from(navigator.getGamepads?.() ?? []).filter((g) => g?.connected);
+      if (remaining.length === 0) {
+        setGamepadActive(false);
+        setLayoutMode('grid');
+      }
+    };
+
+    window.addEventListener('gamepadconnected', onConnect);
+    window.addEventListener('gamepaddisconnected', onDisconnect);
+    checkInitialGamepad();
+
+    return () => {
+      window.removeEventListener('gamepadconnected', onConnect);
+      window.removeEventListener('gamepaddisconnected', onDisconnect);
     };
   }, []);
 
@@ -1297,8 +1329,10 @@ function App() {
               </div>
 
               <button
-                onClick={() => setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
-                className="rounded-xl border border-purple-500/40 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-200 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/60 hover:bg-slate-700/80 sm:text-sm"
+                onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
+                disabled={!gamepadActive}
+                title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur transition-all duration-200 sm:text-sm ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
               >
                 {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
               </button>
@@ -1332,6 +1366,7 @@ function App() {
                 selectedKey={selectedKey}
                 isAudioReady={isReady}
                 ensureAudioReady={ensureAudioReady}
+                isGamepadConnected={gamepadActive}
               />
             )}
             {layoutMode === 'grid' && (<>

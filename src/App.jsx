@@ -1368,17 +1368,6 @@ function App() {
                     </button>
 
                     <button
-                      data-tutorial="fullscreen-button"
-                      onClick={async () => {
-                        await toggleGridFullscreen();
-                        setOptionsOpen(false);
-                      }}
-                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
-                    >
-                      {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                    </button>
-
-                    <button
                       data-tutorial="tutorial-button"
                       onClick={handleTutorialLaunch}
                       className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
@@ -1387,11 +1376,10 @@ function App() {
                     </button>
 
                     <button
-                      onClick={() => {
-                        setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid');
-                        setOptionsOpen(false);
-                      }}
-                      className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                      onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
+                      disabled={!gamepadActive}
+                      title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-all duration-200 ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
                     >
                       {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
                     </button>
@@ -1408,23 +1396,6 @@ function App() {
                   </div>
                 )}
               </div>
-
-              <button
-                onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
-                disabled={!gamepadActive}
-                title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur transition-all duration-200 sm:text-sm ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
-              >
-                {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
-              </button>
-
-              <button
-                onClick={() => setFxModalOpen(true)}
-                className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label="Open FX pedals"
-              >
-                FX Pedals
-              </button>
 
 
             </div>
@@ -1529,26 +1500,6 @@ function App() {
                   className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
                   {hideUnusedNotes ? '✓ Hide Unused Notes' : 'Show All Notes'}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid');
-                    setMobileHeaderOpen(false);
-                  }}
-                  className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
-                >
-                  {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setFxModalOpen(true);
-                    setMobileHeaderOpen(false);
-                  }}
-                  className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
-                >
-                  FX Pedals
                 </button>
 
                 <button

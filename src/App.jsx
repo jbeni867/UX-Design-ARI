@@ -807,6 +807,10 @@ function App() {
     });
   };
 
+  const resetRowAlignments = () => {
+    setRowShifts(Object.fromEntries(octaves.map((octave) => [octave, 0])));
+  };
+
   const disposeInstrument = () => {
     if (instrumentRef.current) {
       try {
@@ -1289,21 +1293,6 @@ function App() {
                     </option>
                   ))}
                 </select>
-
-                <button
-                  type="button"
-                  onClick={() => rotateAllRows(-1)}
-                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
-                >
-                  ◀ Rotate All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => rotateAllRows(1)}
-                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
-                >
-                  Rotate All ▶
-                </button>
               </div>
 
               <div ref={optionsMenuRef} className="relative" data-tutorial="options-menu">
@@ -1513,6 +1502,13 @@ function App() {
                     className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                   >
                     ◀ Rotate All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetRowAlignments()}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    Reset Alignment
                   </button>
                   <button
                     type="button"

@@ -457,7 +457,7 @@ function App() {
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
-  const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
+  const [hideUnusedNotes, setHideUnusedNotes] = useState(true);
   const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'wheel'
 
   // FX state - each pedal has enabled flag and params
@@ -1329,6 +1329,17 @@ function App() {
                     </button>
 
                     <button
+                      data-tutorial="fullscreen-button"
+                      onClick={async () => {
+                        await toggleGridFullscreen();
+                        setOptionsOpen(false);
+                      }}
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    </button>
+
+                    <button
                       data-tutorial="tutorial-button"
                       onClick={handleTutorialLaunch}
                       className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
@@ -1484,6 +1495,33 @@ function App() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="grid items-center gap-2 border-t border-slate-700/50 pt-3 sm:grid-cols-[clamp(52px,7vw,80px)_1fr]">
+                <div className="hidden sm:block" aria-hidden="true" />
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGridFullscreen()}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateAllRows(-1)}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    ◀ Rotate All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateAllRows(1)}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    Rotate All ▶
+                  </button>
+                </div>
               </div>
 
             </>)}

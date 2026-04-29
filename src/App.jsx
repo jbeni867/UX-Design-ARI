@@ -495,6 +495,7 @@ function App() {
   });
 
   const octaves = [7, 6, 5, 4, 3, 2, 1];
+  const [rowShifts, setRowShifts] = useState(() => Object.fromEntries(octaves.map((octave) => [octave, 0])));
   const rowNotes = [
     { note: 'C',  offset: 0 },
     { note: 'Db', offset: 0 },
@@ -775,9 +776,36 @@ function App() {
     );
   })();
 
-  const visibleNotes = hideUnusedNotes ? rowNotes.filter(({ note }) => allowedNotes.has(note)) : rowNotes;
-  const noteGridTemplateColumns = `repeat(${visibleNotes.length}, minmax(0, 1fr))`;
+  const scaleNotes = selectedScale === 'chromatic'
+    ? rowNotes
+    : rowNotes.filter(({ note }) => allowedNotes.has(note));
 
+  const rotateRowNotes = (shift) => {
+    if (scaleNotes.length === 0) return rowNotes;
+    const normalized = ((shift % scaleNotes.length) + scaleNotes.length) % scaleNotes.length;
+    const startNote = scaleNotes[normalized].note;
+    const startIndex = rowNotes.findIndex((item) => item.note === startNote);
+    if (startIndex === -1) return rowNotes;
+    return [...rowNotes.slice(startIndex), ...rowNotes.slice(0, startIndex)];
+  };
+
+  const rotateRow = (rowOctave, direction) => {
+    setRowShifts((prev) => {
+      const current = prev[rowOctave] ?? 0;
+      const next = (current + direction + scaleNotes.length) % scaleNotes.length;
+      return { ...prev, [rowOctave]: next };
+    });
+  };
+
+  const rotateAllRows = (direction) => {
+    setRowShifts((prev) => {
+      if (scaleNotes.length === 0) return prev;
+      return Object.fromEntries(octaves.map((octave) => {
+        const current = prev[octave] ?? 0;
+        return [octave, (current + direction + scaleNotes.length) % scaleNotes.length];
+      }));
+    });
+  };
 
   const disposeInstrument = () => {
     if (instrumentRef.current) {
@@ -1232,7 +1260,7 @@ function App() {
                 </button>
               </div>
 
-              <div data-tutorial="scale-controls" className="flex items-center gap-2">
+              <div data-tutorial="scale-controls" className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
                   Scale
                 </span>
@@ -1261,6 +1289,21 @@ function App() {
                     </option>
                   ))}
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => rotateAllRows(-1)}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  ◀ Rotate All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rotateAllRows(1)}
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  Rotate All ▶
+                </button>
               </div>
 
               <div ref={optionsMenuRef} className="relative" data-tutorial="options-menu">
@@ -1336,110 +1379,113 @@ function App() {
             )}
             {layoutMode === 'grid' && (<>
               <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
-                {octaves.map((rowOctave) => (
-                  <div
-                    className="grid h-full grid-cols-[clamp(52px,7vw,80px)_1fr] items-stretch gap-2"
-                    role="row"
-                    key={rowOctave}
-                  >
-                    {/* Octave Label */}
-                    <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
-                      OCT {rowOctave}
-                    </div>
+                {octaves.map((rowOctave) => {
+                  const shift = rowShifts[rowOctave] ?? 0;
+                  const rotatedRowNotes = rotateRowNotes(shift);
+                  const rowVisibleNotes = hideUnusedNotes
+                    ? rotatedRowNotes.filter(({ note }) => allowedNotes.has(note))
+                    : rotatedRowNotes;
 
-                    {/* Note Buttons */}
+                  return (
                     <div
-                      className="grid h-full gap-1 sm:gap-1.5"
-                      style={{ gridTemplateColumns: noteGridTemplateColumns }}
-                      role="group"
-                      aria-label={`Octave ${rowOctave} notes`}
+                      className="grid h-full grid-cols-[clamp(52px,7vw,80px)_1fr] items-stretch gap-2"
+                      role="row"
+                      key={rowOctave}
                     >
-                      {visibleNotes.map(({ note, offset }) => {
-                        const noteOctave = rowOctave + offset;
-                        const noteId = getNoteId(note, noteOctave);
-                        const isPressed = activeNotes.has(noteId);
-                        const colors = NOTE_COLORS[note];
-                        const inScale = allowedNotes.has(note);
-                        const disabled = samplerLoading || (!hideUnusedNotes && !inScale);
-
-
-                        return (
+                      {/* Octave Label */}
+                      <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full flex-col items-center justify-center gap-2 rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(12px,1.1vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
+                        <div className="flex items-center gap-1">
                           <button
-                            data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
-                            key={`note-${note}-${rowOctave}-${offset}`}
-                            disabled={disabled}
-                            className={[
-                              'group relative h-full w-full touch-none overflow-hidden rounded-none border-2 text-[clamp(13px,1.4vw,18px)] font-extrabold leading-none shadow-lg backdrop-blur transition-colors duration-150',
-                              colors.bg,
-                              colors.text,
-                              disabled
-                                ? 'cursor-not-allowed opacity-40'
-                                : isPressed
-                                ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
-                                : 'border-white/20 shadow-black/40',
-                            ].join(' ')}
-                            onPointerDown={async (event) => {
-                              if (disabled) return;
-                              event.currentTarget.setPointerCapture(event.pointerId);
-                              await attackNoteForPointer(event.pointerId, note, noteOctave);
-                            }}
-                            onPointerUp={(event) => {
-                              if (disabled) return;
-                              releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
-                            }}
-                            onPointerCancel={(event) => {
-                              if (disabled) return;
-                              releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => rotateRow(rowOctave, -1)}
+                            className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
+                            aria-label={`Rotate octave ${rowOctave} left`}
                           >
-                            <span className="relative z-10 flex h-full items-center justify-center">
-                              {note}
-                              <span className="ml-0.5 text-[0.8em] opacity-80">{noteOctave}</span>
-                            </span>
-
-                            {/* Glow overlay when pressed */}
-                            {isPressed && (
-                              <div className="absolute inset-0 animate-pulse bg-white/20" />
-                            )}
+                            ◀
                           </button>
-                        );
-                      })}
+                          <span className="text-[10px] font-semibold text-slate-300">
+                            Start {rotatedRowNotes[0]?.note}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => rotateRow(rowOctave, 1)}
+                            className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
+                            aria-label={`Rotate octave ${rowOctave} right`}
+                          >
+                            ▶
+                          </button>
+                        </div>
+                        <div className="text-[clamp(15px,1.7vw,18px)]">OCT {rowOctave}</div>
+                      </div>
+
+                      {/* Note Buttons */}
+                      <div
+                        className="grid h-full gap-1 sm:gap-1.5"
+                        style={{ gridTemplateColumns: `repeat(${rowVisibleNotes.length}, minmax(0, 1fr))` }}
+                        role="group"
+                        aria-label={`Octave ${rowOctave} notes`}
+                      >
+                        {rowVisibleNotes.map(({ note, offset }) => {
+                          const noteOctave = rowOctave + offset;
+                          const noteId = getNoteId(note, noteOctave);
+                          const isPressed = activeNotes.has(noteId);
+                          const colors = NOTE_COLORS[note];
+                          const inScale = allowedNotes.has(note);
+                          const disabled = samplerLoading || (!hideUnusedNotes && !inScale);
+
+                          return (
+                            <button
+                              data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
+                              key={`note-${note}-${rowOctave}-${offset}`}
+                              disabled={disabled}
+                              className={[
+                                'group relative h-full w-full touch-none overflow-hidden rounded-none border-2 text-[clamp(13px,1.4vw,18px)] font-extrabold leading-none shadow-lg backdrop-blur transition-colors duration-150',
+                                colors.bg,
+                                colors.text,
+                                disabled
+                                  ? 'cursor-not-allowed opacity-40'
+                                  : isPressed
+                                  ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
+                                  : 'border-white/20 shadow-black/40',
+                              ].join(' ')}
+                              onPointerDown={async (event) => {
+                                if (disabled) return;
+                                event.currentTarget.setPointerCapture(event.pointerId);
+                                await attackNoteForPointer(event.pointerId, note, noteOctave);
+                              }}
+                              onPointerUp={(event) => {
+                                if (disabled) return;
+                                releaseNoteForPointer(event.pointerId);
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                              onPointerCancel={(event) => {
+                                if (disabled) return;
+                                releaseNoteForPointer(event.pointerId);
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                            >
+                              <span className="relative z-10 flex h-full items-center justify-center">
+                                {note}
+                                <span className="ml-0.5 text-[0.8em] opacity-80">{noteOctave}</span>
+                              </span>
+
+                              {/* Glow overlay when pressed */}
+                              {isPressed && (
+                                <div className="absolute inset-0 animate-pulse bg-white/20" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Note Axis Labels */}
-              <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
-                <button
-                  data-tutorial="fullscreen-button"
-                  onClick={toggleGridFullscreen}
-                  className="rounded-none border border-white/20 bg-slate-800/80 px-1 py-1 text-[clamp(10px,1.1vw,12px)] font-bold tracking-wide text-cyan-200 shadow-lg transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
-                  aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
-                >
-                  {isGridFullscreen ? 'EXIT' : 'FULL'}
-                </button>
-                <div className="grid gap-1 sm:gap-1.5" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
-                  {visibleNotes.map(({ note }) => {
-                    const colors = NOTE_COLORS[note];
-                    return (
-                      <div
-                        key={`axis-${note}`}
-                        className={`flex items-center justify-center rounded-none border border-white/10 ${colors.bg} ${colors.text} py-1 text-[clamp(13px,1.4vw,17px)] font-medium tracking-wider`}
-                        aria-label={`Note ${note}`}
-                      >
-                        {note}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             </>)}
             </section>
       </div>

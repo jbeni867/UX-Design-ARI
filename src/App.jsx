@@ -276,67 +276,6 @@ function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked 
             </button>
           ))}
               </div>
-              {/* Mobile collapsed menu */}
-              <div className="flex sm:hidden items-center relative">
-                <button
-                  onClick={() => setMobileHeaderOpen((s) => !s)}
-                  className="rounded-lg border border-slate-600/40 bg-slate-800/80 px-3 py-2 text-sm font-semibold text-slate-200 shadow-md"
-                  aria-label="Open menu"
-                >
-                  ☰
-                </button>
-                {mobileHeaderOpen && (
-                  <div className="absolute right-3 top-full mt-2 z-50 w-64 rounded-xl border border-slate-600/40 bg-slate-900/80 p-3 shadow-2xl">
-                    <div className="mb-2 flex items-center gap-2">
-                      {samplerLoading ? (
-                        <div className="flex items-center gap-2 text-xs text-cyan-300">
-                          <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                          Loading samples…
-                        </div>
-                      ) : (
-                        <div className="text-xs text-emerald-400">{isReady ? 'Audio Engine Active' : 'Tap any note to start'}</div>
-                      )}
-                    </div>
-                    <div className="mb-2">
-                      <SequencerControls sequencer={sequencer} />
-                    </div>
-                    <div className="mb-2">
-                      <button
-                        onClick={() => { setPickerOpen(true); setMobileHeaderOpen(false); }}
-                        className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
-                      >
-                        Instrument: {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
-                      </button>
-                    </div>
-                    <div className="mb-2 grid gap-2">
-                      <button
-                        onClick={() => { setHideUnusedNotes(!hideUnusedNotes); setMobileHeaderOpen(false); }}
-                        className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
-                      >
-                        {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
-                      </button>
-                      <button
-                        onClick={() => { handleTutorialLaunch(); setMobileHeaderOpen(false); }}
-                        className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
-                      >
-                        Tutorial
-                      </button>
-                      <button
-                        onClick={() => { setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid'); setMobileHeaderOpen(false); }}
-                        className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200"
-                      >
-                        {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
-                      </button>
-                      <button
-                        onClick={() => { setFxModalOpen(true); setMobileHeaderOpen(false); }}
-                        className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50"
-                      >
-                        FX Pedals
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
           </div>
     </div>
   );
@@ -515,6 +454,8 @@ function App() {
   const [recordingState, setRecordingState] = useState('idle');
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [mobileHeaderOpen, setMobileHeaderOpen] = useState(false);
+  const [isWaffleHeader, setIsWaffleHeader] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
@@ -538,6 +479,7 @@ function App() {
   const gridPanelRef = useRef(null);
   const optionsMenuRef = useRef(null);
   const tutorialRef = useRef(null);
+  const headerRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
   const recorderRef = useRef(null);
@@ -619,11 +561,35 @@ function App() {
       if (!optionsMenuRef.current.contains(event.target)) {
         setOptionsOpen(false);
       }
+
+      // Close mobile menu when clicking outside header
+      if (headerRef.current && !headerRef.current.contains(event.target)) {
+        setMobileHeaderOpen(false);
+      }
     };
 
     document.addEventListener('pointerdown', handleOutsideClick);
     return () => {
       document.removeEventListener('pointerdown', handleOutsideClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateHeaderMode = () => {
+      const WAFFLE_THRESHOLD = 1150;
+      const shouldUseWaffle = window.innerWidth < WAFFLE_THRESHOLD;
+      setIsWaffleHeader(shouldUseWaffle);
+
+      if (!shouldUseWaffle) {
+        setMobileHeaderOpen(false);
+      }
+    };
+
+    updateHeaderMode();
+    window.addEventListener('resize', updateHeaderMode);
+
+    return () => {
+      window.removeEventListener('resize', updateHeaderMode);
     };
   }, []);
 
@@ -1225,43 +1191,34 @@ function App() {
     <main className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-900 px-2 py-2 text-slate-100 sm:px-4 sm:py-4">
       <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col gap-3">
         {/* Header Bar */}
-        <header data-tutorial="app-header" className="relative isolate z-50 shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 sm:min-w-[220px] items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
+        <header ref={headerRef} data-tutorial="app-header" className="relative isolate z-[1000] shrink-0 overflow-visible rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
+          <div className="flex flex-nowrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm">
                 <img src={LOGO_SRC} alt="ARI logo" className="h-full w-full object-cover" draggable="false" />
               </div>
-              <div>
-                <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
-                  ARI - Audio Resonance Interface
+              <div className="min-w-0 flex items-center gap-2 whitespace-nowrap overflow-hidden">
+                <h1 className="shrink-0 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent">
+                  ARI
                 </h1>
-                <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-                  Interactive Music Grid • 7 Octaves • 12 Semitones
-                </p>
               </div>
             </div>
 
-            <div className="hidden sm:flex flex-wrap items-center justify-end gap-3 sm:gap-4">
-              <div className="flex items-center gap-2">
-                {samplerLoading ? (
-                  <>
-                    <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                    <p className="text-xs font-semibold text-cyan-300 sm:text-sm">Loading samples…</p>
-                  </>
-                ) : (
-                  <>
-                    <div className={`h-2 w-2 rounded-full shadow-lg ${isReady ? 'animate-pulse bg-emerald-400 shadow-emerald-400/50' : 'animate-pulse bg-amber-400 shadow-amber-400/50'}`} />
-                    <p className="text-xs font-semibold text-emerald-400 sm:text-sm">
-                      {isReady ? 'Audio Engine Active' : 'Tap any note to start'}
-                    </p>
-                  </>
-                )}
-              </div>
+            {/* Waffle Menu Button */}
+            <button
+              onClick={() => setMobileHeaderOpen((prev) => !prev)}
+              className={`${isWaffleHeader ? 'flex' : 'hidden'} h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-600/40 bg-slate-800/80 text-slate-200 hover:bg-slate-700`}
+              aria-label="Open menu"
+              aria-expanded={mobileHeaderOpen}
+            >
+              <span className="text-xl">☰</span>
+            </button>
 
+            {/* Desktop Menu */}
+            <div className={`${isWaffleHeader ? 'hidden' : 'flex'} flex-nowrap items-center justify-end gap-3`}>
               <SequencerControls sequencer={sequencer} />
 
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">Instrument</span>
+              <div className="flex flex-col items-center gap-1">
                 <button
                   data-tutorial="instrument-button"
                   onClick={() => setPickerOpen(true)}
@@ -1293,8 +1250,8 @@ function App() {
                 </button>
               </div>
 
-              <div data-tutorial="scale-controls" className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
+              <div data-tutorial="scale-controls" className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur">
+                <span className="text-sm font-semibold text-cyan-300">
                   Scale
                 </span>
 
@@ -1328,20 +1285,20 @@ function App() {
                 <button
                   data-tutorial="options-button"
                   onClick={() => setOptionsOpen((prev) => !prev)}
-                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-sm font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
                   Options
                 </button>
 
                 {optionsOpen && (
-                  <div className="absolute right-0 z-[999] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
+                  <div className="absolute right-0 z-[1100] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
                     <button
                       data-tutorial="hide-unused-button"
                       onClick={() => {
                         setHideUnusedNotes(!hideUnusedNotes);
                         setOptionsOpen(false);
                       }}
-                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                     >
                       {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
                     </button>
@@ -1349,31 +1306,170 @@ function App() {
                     <button
                       data-tutorial="tutorial-button"
                       onClick={handleTutorialLaunch}
-                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                     >
                       Tutorial
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid');
+                        setOptionsOpen(false);
+                      }}
+                      className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                    >
+                      {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setFxModalOpen(true);
+                        setOptionsOpen(false);
+                      }}
+                      className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                    >
+                      FX Pedals
                     </button>
                   </div>
                 )}
               </div>
 
-              <button
-                onClick={() => setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
-                className="rounded-xl border border-purple-500/40 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-200 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/60 hover:bg-slate-700/80 sm:text-sm"
-              >
-                {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
-              </button>
-
-              <button
-                onClick={() => setFxModalOpen(true)}
-                className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label="Open FX pedals"
-              >
-                FX Pedals
-              </button>
-
             </div>
           </div>
+
+          {/* Mobile Menu Dropdown */}
+          {mobileHeaderOpen && (
+            <div className={`${isWaffleHeader ? 'block' : 'hidden'} mt-4 space-y-2 border-t border-slate-700/40 pt-4`}>
+              {/* Audio Status */}
+              <div className="px-2 py-2 text-xs font-semibold text-slate-400">
+                {samplerLoading ? (
+                  <div className="flex items-center gap-2 text-cyan-300">
+                    <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                    Loading samples…
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                    {isReady ? 'Audio Engine Active' : 'Tap any note to start'}
+                  </div>
+                )}
+              </div>
+
+              {/* Sequencer Controls */}
+              <div className="px-2 py-2">
+                <SequencerControls sequencer={sequencer} />
+              </div>
+
+              {/* Instrument Picker Button */}
+              <button
+                onClick={() => {
+                  setPickerOpen(true);
+                  setMobileHeaderOpen(false);
+                }}
+                className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2.5 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+              >
+                Instrument: {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
+              </button>
+
+              {/* Recording Controls */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRecordPauseToggle}
+                  className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    recordingState === 'recording'
+                      ? 'animate-pulse border-red-400 bg-red-500 text-white hover:bg-red-400'
+                      : 'border-red-600 bg-red-600 text-white hover:bg-red-500'
+                  }`}
+                >
+                  {recordingState === 'recording' ? 'Pause' : 'Record'}
+                </button>
+                {recordingState !== 'idle' && (
+                  <button
+                    onClick={handleEndRecording}
+                    className="flex-1 rounded-lg border border-slate-500/30 bg-slate-800/80 px-3 py-2.5 text-sm font-semibold text-slate-100 transition-all duration-200 hover:border-slate-400/50 hover:bg-slate-700/80"
+                  >
+                    End
+                  </button>
+                )}
+              </div>
+
+              {/* Scale & Key Controls */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Scale</label>
+                  <select
+                    value={selectedScale}
+                    onChange={(e) => setSelectedScale(e.target.value)}
+                    className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-2 py-2 text-xs text-slate-100"
+                  >
+                    {Object.entries(SCALES).map(([key, scale]) => (
+                      <option key={key} value={key}>
+                        {scale.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Key</label>
+                  <select
+                    value={selectedKey}
+                    onChange={(e) => setSelectedKey(e.target.value)}
+                    disabled={selectedScale === 'chromatic'}
+                    className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-2 py-2 text-xs text-slate-100 disabled:opacity-40"
+                  >
+                    {NOTE_ORDER.map((note) => (
+                      <option key={note} value={note}>
+                        {note}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggle Options */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setHideUnusedNotes(!hideUnusedNotes);
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  {hideUnusedNotes ? '✓ Hide Unused Notes' : 'Show All Notes'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid');
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                >
+                  {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setFxModalOpen(true);
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                >
+                  FX Pedals
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleTutorialLaunch();
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  Tutorial
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
             {/* Note Grid / Wheel */}

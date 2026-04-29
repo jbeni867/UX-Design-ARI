@@ -230,6 +230,7 @@ export default function WheelInstrument({
   selectedKey,
   isAudioReady,
   ensureAudioReady,
+  isGamepadConnected,
 }) {
   const [selectedOctave, setSelectedOctave]     = useState(4);
   const [selectedChordType, setSelectedChordType] = useState(0);
@@ -334,10 +335,12 @@ export default function WheelInstrument({
   const setSelectedChordTypeRef2 = useRef(setSelectedChordType);
   const setActiveChordIdxRef   = useRef(setActiveChordIdx);
   const setSemitoneModeRef     = useRef(setSemitoneMode);
-  const attackRef  = useRef(attackNoteForPointer);
-  const releaseRef = useRef(releaseNoteForPointer);
-  useEffect(() => { attackRef.current  = attackNoteForPointer; }, [attackNoteForPointer]);
-  useEffect(() => { releaseRef.current = releaseNoteForPointer; }, [releaseNoteForPointer]);
+  const attackRef         = useRef(attackNoteForPointer);
+  const releaseRef        = useRef(releaseNoteForPointer);
+  const ensureAudioRef    = useRef(ensureAudioReady);
+  useEffect(() => { attackRef.current      = attackNoteForPointer; }, [attackNoteForPointer]);
+  useEffect(() => { releaseRef.current     = releaseNoteForPointer; }, [releaseNoteForPointer]);
+  useEffect(() => { ensureAudioRef.current = ensureAudioReady; }, [ensureAudioReady]);
 
   useEffect(() => {
     const poll = () => {
@@ -346,10 +349,21 @@ export default function WheelInstrument({
 
       const notes    = wheelNotesRef.current;
       const octave   = selectedOctaveRef.current;
-      const canPlay  = isAudioReadyRef.current && !samplerLoadingRef.current;
       const attack   = attackRef.current;
       const release  = releaseRef.current;
       const chordType = CHORD_TYPES[selectedChordTypeRef.current];
+
+      // Unlock audio engine on any gamepad input (sticks outside dead zone or any button pressed)
+      if (!isAudioReadyRef.current) {
+        const anyStick = Math.hypot(gp.axes[0] ?? 0, gp.axes[1] ?? 0) > STICK_DEAD_ZONE
+          || Math.hypot(gp.axes[2] ?? 0, gp.axes[3] ?? 0) > STICK_DEAD_ZONE;
+        const anyButton = gp.buttons.some((b) => b?.pressed);
+        if (anyStick || anyButton) {
+          ensureAudioRef.current?.();
+        }
+      }
+
+      const canPlay  = isAudioReadyRef.current && !samplerLoadingRef.current;
 
       // ── Left stick → chord wheel ────────────────────────────────────
       const chordSeg    = stickToSegment(gp.axes[0] ?? 0, gp.axes[1] ?? 0, CHORD_ROOTS.length);
@@ -494,12 +508,19 @@ export default function WheelInstrument({
       {/* Audio unlock overlay */}
       {!isAudioReady && (
         <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-black/70 backdrop-blur-sm">
-          <button
-            className="rounded-2xl border-2 border-cyan-400 bg-slate-900 px-8 py-4 text-base font-bold text-cyan-200 shadow-xl shadow-cyan-500/30 transition-all hover:bg-slate-800 active:scale-95"
-            onClick={async () => { if (ensureAudioReady) await ensureAudioReady(); }}
-          >
-            Tap to enable audio
-          </button>
+          <div className="flex flex-col items-center gap-3">
+            <button
+              className="rounded-2xl border-2 border-cyan-400 bg-slate-900 px-8 py-4 text-base font-bold text-cyan-200 shadow-xl shadow-cyan-500/30 transition-all hover:bg-slate-800 active:scale-95"
+              onClick={async () => { if (ensureAudioReady) await ensureAudioReady(); }}
+            >
+              Tap to enable audio
+            </button>
+            {isGamepadConnected && (
+              <p className="text-xs font-semibold text-slate-400">
+                or press any button / move a stick on your controller
+              </p>
+            )}
+          </div>
         </div>
       )}
 

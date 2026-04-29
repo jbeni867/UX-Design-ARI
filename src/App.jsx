@@ -275,8 +275,69 @@ function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked 
               {o.label}
             </button>
           ))}
-        </div>
-      </div>
+              </div>
+              {/* Mobile collapsed menu */}
+              <div className="flex sm:hidden items-center relative">
+                <button
+                  onClick={() => setMobileHeaderOpen((s) => !s)}
+                  className="rounded-lg border border-slate-600/40 bg-slate-800/80 px-3 py-2 text-sm font-semibold text-slate-200 shadow-md"
+                  aria-label="Open menu"
+                >
+                  ☰
+                </button>
+                {mobileHeaderOpen && (
+                  <div className="absolute right-3 top-full mt-2 z-50 w-64 rounded-xl border border-slate-600/40 bg-slate-900/80 p-3 shadow-2xl">
+                    <div className="mb-2 flex items-center gap-2">
+                      {samplerLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-cyan-300">
+                          <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                          Loading samples…
+                        </div>
+                      ) : (
+                        <div className="text-xs text-emerald-400">{isReady ? 'Audio Engine Active' : 'Tap any note to start'}</div>
+                      )}
+                    </div>
+                    <div className="mb-2">
+                      <SequencerControls sequencer={sequencer} />
+                    </div>
+                    <div className="mb-2">
+                      <button
+                        onClick={() => { setPickerOpen(true); setMobileHeaderOpen(false); }}
+                        className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
+                      >
+                        Instrument: {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
+                      </button>
+                    </div>
+                    <div className="mb-2 grid gap-2">
+                      <button
+                        onClick={() => { setHideUnusedNotes(!hideUnusedNotes); setMobileHeaderOpen(false); }}
+                        className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
+                      >
+                        {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
+                      </button>
+                      <button
+                        onClick={() => { handleTutorialLaunch(); setMobileHeaderOpen(false); }}
+                        className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50"
+                      >
+                        Tutorial
+                      </button>
+                      <button
+                        onClick={() => { setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid'); setMobileHeaderOpen(false); }}
+                        className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-200"
+                      >
+                        {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+                      </button>
+                      <button
+                        onClick={() => { setFxModalOpen(true); setMobileHeaderOpen(false); }}
+                        className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50"
+                      >
+                        FX Pedals
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+          </div>
     </div>
   );
 }
@@ -1166,7 +1227,7 @@ function App() {
         {/* Header Bar */}
         <header data-tutorial="app-header" className="relative isolate z-50 shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-[220px] items-center gap-3">
+            <div className="flex min-w-0 sm:min-w-[220px] items-center gap-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
                 <img src={LOGO_SRC} alt="ARI logo" className="h-full w-full object-cover" draggable="false" />
               </div>
@@ -1180,7 +1241,7 @@ function App() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+            <div className="hidden sm:flex flex-wrap items-center justify-end gap-3 sm:gap-4">
               <div className="flex items-center gap-2">
                 {samplerLoading ? (
                   <>

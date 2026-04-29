@@ -616,11 +616,6 @@ function App() {
     setSelectedScale('major');
     setSelectedKey('C');
 
-    const setTutorialContainers = (container) => {
-      tour.options.stepsContainer = container;
-      tour.options.modalContainer = container;
-    };
-
     const tutorialContainer = document.body;
 
     const tour = new Shepherd.Tour({
@@ -634,12 +629,20 @@ function App() {
       },
     });
 
+    // Added tutorial progress tracker so each Shepherd step shows current step number (ex: Step 1/10)
+    // Helps users know where they are in onboarding flow
+    const totalSteps = 10;
+    const createStepTitle = (stepNum, title) =>
+      `${title} <span class="text-xs text-slate-400">(Step ${stepNum}/${totalSteps})</span>`;
+    
     const nextButton = { text: 'Next', action: tour.next };
     const backButton = { text: 'Back', action: tour.back };
 
     tour.addStep({
       id: 'welcome',
-      title: 'Welcome To ARI',
+      // Updated first tutorial step to use dynamic title with progress counter
+      // Introduces users to ARI tutorial and what features will be covered
+      title: createStepTitle(1, 'Welcome To ARI'),
       text: 'This tutorial covers navigation: octaves and notes, instruments, recording, scales/key, hide unused notes, and fullscreen controls.',
       attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
       buttons: [nextButton],
@@ -647,7 +650,8 @@ function App() {
 
     tour.addStep({
       id: 'octaves',
-      title: 'Octave Axis (Vertical)',
+      // Updated second tutorial step to use dynamic title with progress counter
+      title: createStepTitle(2, 'Octave Axis (Vertical)'),
       text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
       attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
       buttons: [backButton, nextButton],
@@ -655,15 +659,52 @@ function App() {
 
     tour.addStep({
       id: 'notes',
-      title: 'Note Axis (Horizontal)',
-      text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
+      // Updated note axis tutorial step title with progress counter
+      // Reworked step to be more interactive instead of static explanation
+      title: createStepTitle(3, 'Note Axis (Horizontal)'),
+      // Replaced original static note tutorial step with interactive version
+      // User must tap a note button before tutorial advances automatically
+      text: `
+        <p class="mb-2">Each column is a note name (C, Db, D, etc.).</p>
+        <p class="text-sm font-semibold text-cyan-400">
+          🎵 Tap any note button to continue!
+        </p>
+      `,
+      // Points tutorial tooltip at first C note button
       attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
-      buttons: [backButton, nextButton],
+      // Removed Next button and replaced with event listener that waits for user to tap a note before advancing tutorial
+      buttons: [backButton],
+
+      when: {
+        show: function () {
+          // Hide Shepherd's default overlay so it doesn't block user interaction with note buttons
+          const overlay = document.querySelector('.shepherd-modal-overlay-container');
+          if (overlay) overlay.style.display = 'none';
+
+          const handleAction = () => {
+            // Remove listener after first tap to prevent multiple triggers
+            document.removeEventListener('pointerdown', handleAction, true);
+            setTimeout(() => tour.next(), 300);
+          };
+
+          setTimeout(() => {
+            document.addEventListener('pointerdown', handleAction, true);
+          }, 100);
+        },
+
+      hide: function () {
+          // Restore tutorial overlay after leaving step
+          const overlay = document.querySelector('.shepherd-modal-overlay-container');
+          if (overlay) overlay.style.display = '';
+        }
+      }
     });
 
     tour.addStep({
       id: 'instrument-trigger',
-      title: 'Change Instruments',
+      // Added progress counter to instrument selection tutorial step
+      // Explains how users open instrument picker
+      title: createStepTitle(4, 'Change Instruments'),
       text: 'Use this control to open the instrument picker and switch between synths and sampled instruments.',
       attachTo: { element: '[data-tutorial="instrument-button"]', on: 'bottom' },
       buttons: [backButton, nextButton],
@@ -671,7 +712,9 @@ function App() {
 
     tour.addStep({
       id: 'instrument-picker',
-      title: 'Instrument Picker',
+      // Added progress counter to instrument picker modal step
+      // Explains synth vs sampled instrument choices
+      title: createStepTitle(5, 'Instrument Picker'),
       text: 'Pick any instrument here. You can choose from synth engines or realistic sampled instruments. The tutorial advances as soon as you choose one.',
       attachTo: { element: '[data-tutorial="instrument-modal"]', on: 'right' },
       beforeShowPromise: () => {
@@ -683,7 +726,9 @@ function App() {
 
     tour.addStep({
       id: 'record-song',
-      title: 'Record A Song',
+      // Added progress counter to recording tutorial step
+      // Explains start, pause, resume, and download flow
+      title: createStepTitle(6, 'Record A Song'),
       text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
       attachTo: { element: '[data-tutorial="record-button"]', on: 'bottom' },
       buttons: [backButton, nextButton],
@@ -691,7 +736,9 @@ function App() {
 
     tour.addStep({
       id: 'scale-and-key',
-      title: 'Scale And Key (Major/Minor)',
+      // Added progress counter to scale/key tutorial step
+      // Explains how scales determine usable notes
+      title: createStepTitle(7, 'Scale And Key (Major/Minor)'),
       text: 'Choose a scale (Major, Minor, Pentatonic, or Chromatic) and choose a key/root note. This controls which notes are considered in-scale.',
       attachTo: { element: '[data-tutorial="scale-controls"]', on: 'bottom' },
       buttons: [backButton, nextButton],
@@ -699,7 +746,9 @@ function App() {
 
     tour.addStep({
       id: 'options-menu-button',
-      title: 'Options Menu',
+      // Added progress counter to options menu tutorial step
+      // Shows where hidden features/settings are located
+      title: createStepTitle(8, 'Options Menu'),
       text: 'This button opens the Options menu, where you can hide unused notes and reopen the tutorial later.',
       attachTo: { element: '[data-tutorial="options-button"]', on: 'bottom' },
       beforeShowPromise: () => {
@@ -711,7 +760,9 @@ function App() {
 
     tour.addStep({
       id: 'hide-unused',
-      title: 'Hide Unused Notes',
+      // Added progress counter to final tutorial step
+      // Lets users know tutorial can be reopened anytime later
+      title: createStepTitle(10, 'Tutorial Button'),
       text: 'This removes notes outside your selected scale and makes the remaining buttons larger, which is especially helpful on mobile.',
       attachTo: { element: '[data-tutorial="hide-unused-button"]', on: 'bottom' },
       beforeShowPromise: () => {

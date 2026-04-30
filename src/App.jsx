@@ -4,6 +4,7 @@ import Shepherd from 'shepherd.js';
 import 'shepherd.js/dist/css/shepherd.css';
 import { useStepSequencer, SequencerControls } from './useStepSequencer';
 import WheelInstrument from './WheelInstrument';
+import SongGuide from './SongGuide';
 // Use global window.lamejs loaded from public/lame.min.js
 
 async function encodeToMp3(blob) {
@@ -460,6 +461,8 @@ function App() {
   const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
   const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'wheel'
   const [gamepadActive, setGamepadActive] = useState(false);
+  const [songGuideOpen, setSongGuideOpen] = useState(false);
+  const [songGuideStep, setSongGuideStep] = useState(0);
 
   // FX state - each pedal has enabled flag and params
   const [fxState, setFxState] = useState({
@@ -710,7 +713,7 @@ function App() {
         setPickerOpen(true);
         return new Promise((resolve) => setTimeout(resolve, 150));
       },
-      buttons: [backButton],
+      buttons: [],
     });
 
     tour.addStep({
@@ -762,12 +765,23 @@ function App() {
         setOptionsOpen(true);
         return new Promise((resolve) => setTimeout(resolve, 120));
       },
+      buttons: [backButton, nextButton],
+    });
+
+    tour.addStep({
+      id: 'song-guide',
+      title: 'Try Playing a Song!',
+      text: 'Follow along with the note guide below the grid — play each highlighted note in order. The guide advances automatically as you play. Give it a try!',
+      attachTo: { element: '[data-tutorial="song-guide"]', on: 'top' },
+      beforeShowPromise: () => {
+        setOptionsOpen(false);
+        setSongGuideOpen(true);
+        setSongGuideStep(0);
+        return new Promise((resolve) => setTimeout(resolve, 150));
+      },
       buttons: [
         backButton,
-        {
-          text: 'Finish',
-          action: tour.complete,
-        },
+        { text: 'Finish', action: tour.complete },
       ],
     });
 
@@ -1318,6 +1332,17 @@ function App() {
                     </button>
 
                     <button
+                      onClick={() => {
+                        setSongGuideOpen(true);
+                        setSongGuideStep(0);
+                        setOptionsOpen(false);
+                      }}
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                    >
+                      ★ Twinkle Twinkle
+                    </button>
+
+                    <button
                       data-tutorial="tutorial-button"
                       onClick={handleTutorialLaunch}
                       className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
@@ -1475,7 +1500,27 @@ function App() {
                   })}
                 </div>
               </div>
+
+              {/* Song guide — sits below note axis, never overlaps grid */}
+              {songGuideOpen && (
+                <SongGuide
+                  activeNotes={activeNotes}
+                  step={songGuideStep}
+                  setStep={setSongGuideStep}
+                  onDismiss={() => setSongGuideOpen(false)}
+                />
+              )}
             </>)}
+
+            {/* Song guide in wheel mode — sits below wheel content */}
+            {layoutMode === 'wheel' && songGuideOpen && (
+              <SongGuide
+                activeNotes={activeNotes}
+                step={songGuideStep}
+                setStep={setSongGuideStep}
+                onDismiss={() => setSongGuideOpen(false)}
+              />
+            )}
             </section>
       </div>
     </main>

@@ -675,7 +675,6 @@ function App() {
 
     setPickerOpen(false);
     setOptionsOpen(false);
-    setHideUnusedNotes(false);
     setSelectedScale('major');
     setSelectedKey('C');
 
@@ -805,6 +804,7 @@ function App() {
         setOptionsOpen(false);
         setSongGuideOpen(true);
         setSongGuideStep(0);
+        setHideUnusedNotes(true);
         return new Promise((resolve) => setTimeout(resolve, 150));
       },
       buttons: [
@@ -1395,13 +1395,17 @@ function App() {
 
                     <button
                       onClick={() => {
-                        setSongGuideOpen(true);
-                        setSongGuideStep(0);
+                        if (songGuideOpen) {
+                          setSongGuideOpen(false);
+                        } else {
+                          setSongGuideOpen(true);
+                          setSongGuideStep(0);
+                        }
                         setOptionsOpen(false);
                       }}
                       className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
                     >
-                      ★ Twinkle Twinkle
+                      {songGuideOpen ? '✕ Hide Twinkle Twinkle' : '★ Twinkle Twinkle'}
                     </button>
 
                     <button

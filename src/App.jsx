@@ -276,8 +276,8 @@ function InstrumentPickerModal({ current, onSelect, onClose, onInstrumentPicked 
               {o.label}
             </button>
           ))}
-        </div>
-      </div>
+              </div>
+          </div>
     </div>
   );
 }
@@ -455,10 +455,12 @@ function App() {
   const [recordingState, setRecordingState] = useState('idle');
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [mobileHeaderOpen, setMobileHeaderOpen] = useState(false);
+  const [isWaffleHeader, setIsWaffleHeader] = useState(false);
 
   const [selectedScale, setSelectedScale] = useState('major'); //For selecting key
   const [selectedKey, setSelectedKey] = useState('C');
-  const [hideUnusedNotes, setHideUnusedNotes] = useState(false);
+  const [hideUnusedNotes, setHideUnusedNotes] = useState(true);
   const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'wheel'
   const [gamepadActive, setGamepadActive] = useState(false);
   const [songGuideOpen, setSongGuideOpen] = useState(false);
@@ -481,6 +483,7 @@ function App() {
   const gridPanelRef = useRef(null);
   const optionsMenuRef = useRef(null);
   const tutorialRef = useRef(null);
+  const headerRef = useRef(null);
   const samplerReadyRef = useRef(Promise.resolve());
   const analyzerRef = useRef(null);
   const recorderRef = useRef(null);
@@ -499,6 +502,7 @@ function App() {
   });
 
   const octaves = [7, 6, 5, 4, 3, 2, 1];
+  const [rowShifts, setRowShifts] = useState(() => Object.fromEntries(octaves.map((octave) => [octave, 0])));
   const rowNotes = [
     { note: 'C',  offset: 0 },
     { note: 'Db', offset: 0 },
@@ -593,11 +597,35 @@ function App() {
       if (!optionsMenuRef.current.contains(event.target)) {
         setOptionsOpen(false);
       }
+
+      // Close mobile menu when clicking outside header
+      if (headerRef.current && !headerRef.current.contains(event.target)) {
+        setMobileHeaderOpen(false);
+      }
     };
 
     document.addEventListener('pointerdown', handleOutsideClick);
     return () => {
       document.removeEventListener('pointerdown', handleOutsideClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateHeaderMode = () => {
+      const WAFFLE_THRESHOLD = 1150;
+      const shouldUseWaffle = window.innerWidth < WAFFLE_THRESHOLD;
+      setIsWaffleHeader(shouldUseWaffle);
+
+      if (!shouldUseWaffle) {
+        setMobileHeaderOpen(false);
+      }
+    };
+
+    updateHeaderMode();
+    window.addEventListener('resize', updateHeaderMode);
+
+    return () => {
+      window.removeEventListener('resize', updateHeaderMode);
     };
   }, []);
 
@@ -821,9 +849,40 @@ function App() {
     );
   })();
 
-  const visibleNotes = hideUnusedNotes ? rowNotes.filter(({ note }) => allowedNotes.has(note)) : rowNotes;
-  const noteGridTemplateColumns = `repeat(${visibleNotes.length}, minmax(0, 1fr))`;
+  const scaleNotes = selectedScale === 'chromatic'
+    ? rowNotes
+    : rowNotes.filter(({ note }) => allowedNotes.has(note));
 
+  const rotateRowNotes = (shift) => {
+    if (scaleNotes.length === 0) return rowNotes;
+    const normalized = ((shift % scaleNotes.length) + scaleNotes.length) % scaleNotes.length;
+    const startNote = scaleNotes[normalized].note;
+    const startIndex = rowNotes.findIndex((item) => item.note === startNote);
+    if (startIndex === -1) return rowNotes;
+    return [...rowNotes.slice(startIndex), ...rowNotes.slice(0, startIndex)];
+  };
+
+  const rotateRow = (rowOctave, direction) => {
+    setRowShifts((prev) => {
+      const current = prev[rowOctave] ?? 0;
+      const next = (current + direction + scaleNotes.length) % scaleNotes.length;
+      return { ...prev, [rowOctave]: next };
+    });
+  };
+
+  const rotateAllRows = (direction) => {
+    setRowShifts((prev) => {
+      if (scaleNotes.length === 0) return prev;
+      return Object.fromEntries(octaves.map((octave) => {
+        const current = prev[octave] ?? 0;
+        return [octave, (current + direction + scaleNotes.length) % scaleNotes.length];
+      }));
+    });
+  };
+
+  const resetRowAlignments = () => {
+    setRowShifts(Object.fromEntries(octaves.map((octave) => [octave, 0])));
+  };
 
   const disposeInstrument = () => {
     if (instrumentRef.current) {
@@ -860,9 +919,15 @@ function App() {
     const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
     
     if (enabledFX.length === 0) {
-      // No FX enabled, connect directly to analyzer/destination
+      // No FX enabled, connect directly to analyzer/recorder/destination
       if (analyzerRef.current) {
         inst.connect(analyzerRef.current);
+      }
+      if (recorderRef.current) {
+        inst.connect(recorderRef.current);
+      }
+      // Connect destination signals
+      if (analyzerRef.current) {
         analyzerRef.current.toDestination();
       } else {
         inst.toDestination();
@@ -870,7 +935,7 @@ function App() {
       return;
     }
 
-    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer -> destination
+    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer/recorder -> destination
     let lastNode = inst;
     
     enabledFX.forEach(([pedalKey, state]) => {
@@ -881,9 +946,15 @@ function App() {
       }
     });
     
-    // Connect last FX to analyzer or destination
+    // Connect last FX to analyzer and recorder
     if (analyzerRef.current) {
       lastNode.connect(analyzerRef.current);
+    }
+    if (recorderRef.current) {
+      lastNode.connect(recorderRef.current);
+    }
+    // Connect destination signals
+    if (analyzerRef.current) {
       analyzerRef.current.toDestination();
     } else {
       lastNode.toDestination();
@@ -1102,7 +1173,7 @@ function App() {
     try {
       const recording = await recorderRef.current.stop();
       
-      if (recording.size < 500) {
+      if (recording.size < 10) {
         throw new Error('Recording is too short or empty. Please ensure audio was playing.');
       }
       
@@ -1210,43 +1281,34 @@ function App() {
     <main className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-900 px-2 py-2 text-slate-100 sm:px-4 sm:py-4">
       <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col gap-3">
         {/* Header Bar */}
-        <header data-tutorial="app-header" className="relative isolate z-50 shrink-0 rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-[220px] items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm sm:h-16 sm:w-16">
+        <header ref={headerRef} data-tutorial="app-header" className="relative isolate z-[1000] shrink-0 overflow-visible rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900/90 to-slate-800/90 p-3 shadow-xl backdrop-blur-sm sm:p-4">
+          <div className="flex flex-nowrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 shadow-lg shadow-cyan-500/10 backdrop-blur-sm">
                 <img src={LOGO_SRC} alt="ARI logo" className="h-full w-full object-cover" draggable="false" />
               </div>
-              <div>
-                <h1 className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
-                  ARI - Audio Resonance Interface
+              <div className="min-w-0 flex items-center gap-2 whitespace-nowrap overflow-hidden">
+                <h1 className="shrink-0 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-tight text-transparent">
+                  ARI
                 </h1>
-                <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-                  Interactive Music Grid • 7 Octaves • 12 Semitones
-                </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
-              <div className="flex items-center gap-2">
-                {samplerLoading ? (
-                  <>
-                    <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                    <p className="text-xs font-semibold text-cyan-300 sm:text-sm">Loading samples…</p>
-                  </>
-                ) : (
-                  <>
-                    <div className={`h-2 w-2 rounded-full shadow-lg ${isReady ? 'animate-pulse bg-emerald-400 shadow-emerald-400/50' : 'animate-pulse bg-amber-400 shadow-amber-400/50'}`} />
-                    <p className="text-xs font-semibold text-emerald-400 sm:text-sm">
-                      {isReady ? 'Audio Engine Active' : 'Tap any note to start'}
-                    </p>
-                  </>
-                )}
-              </div>
+            {/* Waffle Menu Button */}
+            <button
+              onClick={() => setMobileHeaderOpen((prev) => !prev)}
+              className={`${isWaffleHeader ? 'flex' : 'hidden'} h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-600/40 bg-slate-800/80 text-slate-200 hover:bg-slate-700`}
+              aria-label="Open menu"
+              aria-expanded={mobileHeaderOpen}
+            >
+              <span className="text-xl">☰</span>
+            </button>
 
+            {/* Desktop Menu */}
+            <div className={`${isWaffleHeader ? 'hidden' : 'flex'} flex-nowrap items-center justify-end gap-3`}>
               <SequencerControls sequencer={sequencer} />
 
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-cyan-300 sm:text-sm">Instrument</span>
+              <div className="flex flex-col items-center gap-1">
                 <button
                   data-tutorial="instrument-button"
                   onClick={() => setPickerOpen(true)}
@@ -1278,7 +1340,7 @@ function App() {
                 </button>
               </div>
 
-              <div data-tutorial="scale-controls" className="flex items-center gap-2">
+              <div data-tutorial="scale-controls" className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur">
                 <span className="text-xs font-semibold text-cyan-300 sm:text-sm">
                   Scale
                 </span>
@@ -1313,20 +1375,20 @@ function App() {
                 <button
                   data-tutorial="options-button"
                   onClick={() => setOptionsOpen((prev) => !prev)}
-                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                  className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-sm font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
                   Options
                 </button>
 
                 {optionsOpen && (
-                  <div className="absolute right-0 z-[999] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
+                  <div className="absolute right-0 z-[1100] mt-2 w-52 rounded-xl border border-slate-600/40 bg-slate-900/72 p-2 shadow-2xl backdrop-blur-md">
                     <button
                       data-tutorial="hide-unused-button"
                       onClick={() => {
                         setHideUnusedNotes(!hideUnusedNotes);
                         setOptionsOpen(false);
                       }}
-                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                      className="mb-1 w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                     >
                       {hideUnusedNotes ? 'Show All Notes' : 'Hide Unused Notes'}
                     </button>
@@ -1345,33 +1407,150 @@ function App() {
                     <button
                       data-tutorial="tutorial-button"
                       onClick={handleTutorialLaunch}
-                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-xs font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80 sm:text-sm"
+                      className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                     >
                       Tutorial
+                    </button>
+
+                    <button
+                      onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
+                      disabled={!gamepadActive}
+                      title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-all duration-200 ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
+                    >
+                      {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setFxModalOpen(true);
+                        setOptionsOpen(false);
+                      }}
+                      className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                    >
+                      FX Pedals
                     </button>
                   </div>
                 )}
               </div>
 
-              <button
-                onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
-                disabled={!gamepadActive}
-                title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur transition-all duration-200 sm:text-sm ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
-              >
-                {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
-              </button>
-
-              <button
-                onClick={() => setFxModalOpen(true)}
-                className="rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-purple-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80 sm:text-sm"
-                aria-label="Open FX pedals"
-              >
-                FX Pedals
-              </button>
 
             </div>
           </div>
+
+          {/* Mobile Menu Dropdown */}
+          {mobileHeaderOpen && (
+            <div className={`${isWaffleHeader ? 'block' : 'hidden'} mt-4 space-y-2 border-t border-slate-700/40 pt-4`}>
+              {/* Audio Status */}
+              <div className="px-2 py-2 text-xs font-semibold text-slate-400">
+                {samplerLoading ? (
+                  <div className="flex items-center gap-2 text-cyan-300">
+                    <div className="h-2 w-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                    Loading samples…
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                    {isReady ? 'Audio Engine Active' : 'Tap any note to start'}
+                  </div>
+                )}
+              </div>
+
+              {/* Sequencer Controls */}
+              <div className="px-2 py-2">
+                <SequencerControls sequencer={sequencer} />
+              </div>
+
+              {/* Instrument Picker Button */}
+              <button
+                onClick={() => {
+                  setPickerOpen(true);
+                  setMobileHeaderOpen(false);
+                }}
+                className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-3 py-2.5 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+              >
+                Instrument: {INSTRUMENT_OPTIONS.find((o) => o.value === instrumentType)?.label ?? instrumentType}
+              </button>
+
+              {/* Recording Controls */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRecordPauseToggle}
+                  className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    recordingState === 'recording'
+                      ? 'animate-pulse border-red-400 bg-red-500 text-white hover:bg-red-400'
+                      : 'border-red-600 bg-red-600 text-white hover:bg-red-500'
+                  }`}
+                >
+                  {recordingState === 'recording' ? 'Pause' : 'Record'}
+                </button>
+                {recordingState !== 'idle' && (
+                  <button
+                    onClick={handleEndRecording}
+                    className="flex-1 rounded-lg border border-slate-500/30 bg-slate-800/80 px-3 py-2.5 text-sm font-semibold text-slate-100 transition-all duration-200 hover:border-slate-400/50 hover:bg-slate-700/80"
+                  >
+                    End
+                  </button>
+                )}
+              </div>
+
+              {/* Scale & Key Controls */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Scale</label>
+                  <select
+                    value={selectedScale}
+                    onChange={(e) => setSelectedScale(e.target.value)}
+                    className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-2 py-2 text-xs text-slate-100"
+                  >
+                    {Object.entries(SCALES).map(([key, scale]) => (
+                      <option key={key} value={key}>
+                        {scale.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Key</label>
+                  <select
+                    value={selectedKey}
+                    onChange={(e) => setSelectedKey(e.target.value)}
+                    disabled={selectedScale === 'chromatic'}
+                    className="w-full rounded-lg border border-cyan-500/30 bg-slate-800/80 px-2 py-2 text-xs text-slate-100 disabled:opacity-40"
+                  >
+                    {NOTE_ORDER.map((note) => (
+                      <option key={note} value={note}>
+                        {note}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggle Options */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setHideUnusedNotes(!hideUnusedNotes);
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  {hideUnusedNotes ? '✓ Hide Unused Notes' : 'Show All Notes'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleTutorialLaunch();
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  Tutorial
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
             {/* Note Grid / Wheel */}
@@ -1396,110 +1575,147 @@ function App() {
             )}
             {layoutMode === 'grid' && (<>
               <div className="grid min-h-0 flex-1 gap-1.5" style={{ gridTemplateRows: octaveGridTemplateRows }}>
-                {octaves.map((rowOctave) => (
-                  <div
-                    className="grid h-full grid-cols-[clamp(52px,7vw,80px)_1fr] items-stretch gap-2"
-                    role="row"
-                    key={rowOctave}
-                  >
-                    {/* Octave Label */}
-                    <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full items-center justify-center rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(15px,1.7vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
-                      OCT {rowOctave}
-                    </div>
+                {octaves.map((rowOctave) => {
+                  const shift = rowShifts[rowOctave] ?? 0;
+                  const rotatedRowNotes = rotateRowNotes(shift);
+                  const rowVisibleNotes = hideUnusedNotes
+                    ? rotatedRowNotes.filter(({ note }) => allowedNotes.has(note))
+                    : rotatedRowNotes;
 
-                    {/* Note Buttons */}
+                  return (
                     <div
-                      className="grid h-full gap-1 sm:gap-1.5"
-                      style={{ gridTemplateColumns: noteGridTemplateColumns }}
-                      role="group"
-                      aria-label={`Octave ${rowOctave} notes`}
+                      className="grid h-full grid-cols-[clamp(52px,7vw,80px)_1fr] items-stretch gap-2"
+                      role="row"
+                      key={rowOctave}
                     >
-                      {visibleNotes.map(({ note, offset }) => {
-                        const noteOctave = rowOctave + offset;
-                        const noteId = getNoteId(note, noteOctave);
-                        const isPressed = activeNotes.has(noteId);
-                        const colors = NOTE_COLORS[note];
-                        const inScale = allowedNotes.has(note);
-                        const disabled = samplerLoading || (!hideUnusedNotes && !inScale);
-
-
-                        return (
+                      {/* Octave Label */}
+                      <div data-tutorial={rowOctave === 1 ? 'octave-label' : undefined} className="flex h-full flex-col items-center justify-center gap-2 rounded-none border-2 border-slate-600/60 bg-slate-800/80 px-1 text-center text-[clamp(12px,1.1vw,18px)] font-black tracking-wide text-slate-100 shadow-lg backdrop-blur">
+                        <div className="flex items-center gap-1">
                           <button
-                            data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
-                            key={`note-${note}-${rowOctave}-${offset}`}
-                            disabled={disabled}
-                            className={[
-                              'group relative h-full w-full touch-none overflow-hidden rounded-none border-2 text-[clamp(13px,1.4vw,18px)] font-extrabold leading-none shadow-lg backdrop-blur transition-colors duration-150',
-                              colors.bg,
-                              colors.text,
-                              disabled
-                                ? 'cursor-not-allowed opacity-40'
-                                : isPressed
-                                ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
-                                : 'border-white/20 shadow-black/40',
-                            ].join(' ')}
-                            onPointerDown={async (event) => {
-                              if (disabled) return;
-                              event.currentTarget.setPointerCapture(event.pointerId);
-                              await attackNoteForPointer(event.pointerId, note, noteOctave);
-                            }}
-                            onPointerUp={(event) => {
-                              if (disabled) return;
-                              releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
-                            }}
-                            onPointerCancel={(event) => {
-                              if (disabled) return;
-                              releaseNoteForPointer(event.pointerId);
-                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                event.currentTarget.releasePointerCapture(event.pointerId);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => rotateRow(rowOctave, -1)}
+                            className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
+                            aria-label={`Rotate octave ${rowOctave} left`}
                           >
-                            <span className="relative z-10 flex h-full items-center justify-center">
-                              {note}
-                              <span className="ml-0.5 text-[0.8em] opacity-80">{noteOctave}</span>
-                            </span>
-
-                            {/* Glow overlay when pressed */}
-                            {isPressed && (
-                              <div className="absolute inset-0 animate-pulse bg-white/20" />
-                            )}
+                            ◀
                           </button>
-                        );
-                      })}
+                          <span className="text-[10px] font-semibold text-slate-300">
+                            Start {rotatedRowNotes[0]?.note}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => rotateRow(rowOctave, 1)}
+                            className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
+                            aria-label={`Rotate octave ${rowOctave} right`}
+                          >
+                            ▶
+                          </button>
+                        </div>
+                        <div className="text-[clamp(15px,1.7vw,18px)]">OCT {rowOctave}</div>
+                      </div>
+
+                      {/* Note Buttons */}
+                      <div
+                        className="grid h-full gap-1 sm:gap-1.5"
+                        style={{ gridTemplateColumns: `repeat(${rowVisibleNotes.length}, minmax(0, 1fr))` }}
+                        role="group"
+                        aria-label={`Octave ${rowOctave} notes`}
+                      >
+                        {rowVisibleNotes.map(({ note, offset }) => {
+                          const noteOctave = rowOctave + offset;
+                          const noteId = getNoteId(note, noteOctave);
+                          const isPressed = activeNotes.has(noteId);
+                          const colors = NOTE_COLORS[note];
+                          const inScale = allowedNotes.has(note);
+                          const disabled = samplerLoading || (!hideUnusedNotes && !inScale);
+
+                          return (
+                            <button
+                              data-tutorial={note === 'C' && rowOctave === 1 ? 'note-c' : undefined}
+                              key={`note-${note}-${rowOctave}-${offset}`}
+                              disabled={disabled}
+                              className={[
+                                'group relative h-full w-full touch-none overflow-hidden rounded-none border-2 text-[clamp(13px,1.4vw,18px)] font-extrabold leading-none shadow-lg backdrop-blur transition-colors duration-150',
+                                colors.bg,
+                                colors.text,
+                                disabled
+                                  ? 'cursor-not-allowed opacity-40'
+                                  : isPressed
+                                  ? `border-white/50 ${colors.glow} brightness-125 saturate-150`
+                                  : 'border-white/20 shadow-black/40',
+                              ].join(' ')}
+                              onPointerDown={async (event) => {
+                                if (disabled) return;
+                                event.currentTarget.setPointerCapture(event.pointerId);
+                                await attackNoteForPointer(event.pointerId, note, noteOctave);
+                              }}
+                              onPointerUp={(event) => {
+                                if (disabled) return;
+                                releaseNoteForPointer(event.pointerId);
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                              onPointerCancel={(event) => {
+                                if (disabled) return;
+                                releaseNoteForPointer(event.pointerId);
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                            >
+                              <span className="relative z-10 flex h-full items-center justify-center">
+                                {note}
+                                <span className="ml-0.5 text-[0.8em] opacity-80">{noteOctave}</span>
+                              </span>
+
+                              {/* Glow overlay when pressed */}
+                              {isPressed && (
+                                <div className="absolute inset-0 animate-pulse bg-white/20" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Note Axis Labels */}
-              <div className="grid shrink-0 grid-cols-[clamp(52px,7vw,80px)_1fr] gap-2" aria-label="Note axis">
-                <button
-                  data-tutorial="fullscreen-button"
-                  onClick={toggleGridFullscreen}
-                  className="rounded-none border border-white/20 bg-slate-800/80 px-1 py-1 text-[clamp(10px,1.1vw,12px)] font-bold tracking-wide text-cyan-200 shadow-lg transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
-                  aria-label={isGridFullscreen ? 'Exit fullscreen for note grid' : 'Enter fullscreen for note grid'}
-                >
-                  {isGridFullscreen ? 'EXIT' : 'FULL'}
-                </button>
-                <div className="grid gap-1 sm:gap-1.5" style={{ gridTemplateColumns: noteGridTemplateColumns }}>
-                  {visibleNotes.map(({ note }) => {
-                    const colors = NOTE_COLORS[note];
-                    return (
-                      <div
-                        key={`axis-${note}`}
-                        className={`flex items-center justify-center rounded-none border border-white/10 ${colors.bg} ${colors.text} py-1 text-[clamp(13px,1.4vw,17px)] font-medium tracking-wider`}
-                        aria-label={`Note ${note}`}
-                      >
-                        {note}
-                      </div>
-                    );
-                  })}
+              <div className="grid items-center gap-2 border-t border-slate-700/50 pt-3 sm:grid-cols-[clamp(52px,7vw,80px)_1fr]">
+                <div className="hidden sm:block" aria-hidden="true" />
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGridFullscreen()}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    {isGridFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateAllRows(-1)}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    ◀ Rotate All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetRowAlignments()}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    Reset Alignment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateAllRows(1)}
+                    className="rounded-xl border border-cyan-500/30 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-cyan-50 shadow-lg backdrop-blur transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                  >
+                    Rotate All ▶
+                  </button>
                 </div>
               </div>
+
 
               {/* Song guide — sits below note axis, never overlaps grid */}
               {songGuideOpen && (

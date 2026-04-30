@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const MARIO_SEQUENCE = [
+  { note: 'E5',  label: 'E',  oct: 5 }, { note: 'E5',  label: 'E',  oct: 5 }, { note: 'E5',  label: 'E',  oct: 5 },
+  { note: 'C5',  label: 'C',  oct: 5 }, { note: 'E5',  label: 'E',  oct: 5 }, { note: 'G5',  label: 'G',  oct: 5 },
+  { note: 'G4',  label: 'G',  oct: 4 }, { note: 'C5',  label: 'C',  oct: 5 }, { note: 'G4',  label: 'G',  oct: 4 },
+  { note: 'E4',  label: 'E',  oct: 4 }, { note: 'A4',  label: 'A',  oct: 4 }, { note: 'B4',  label: 'B',  oct: 4 },
+  { note: 'Bb4', label: 'Bb', oct: 4 }, { note: 'A4',  label: 'A',  oct: 4 }, { note: 'G4',  label: 'G',  oct: 4 },
+  { note: 'E5',  label: 'E',  oct: 5 }, { note: 'G5',  label: 'G',  oct: 5 }, { note: 'A5',  label: 'A',  oct: 5 },
+  { note: 'F5',  label: 'F',  oct: 5 }, { note: 'G5',  label: 'G',  oct: 5 }, { note: 'E5',  label: 'E',  oct: 5 },
+  { note: 'C5',  label: 'C',  oct: 5 }, { note: 'D5',  label: 'D',  oct: 5 }, { note: 'B4',  label: 'B',  oct: 4 },
+];
+
 const NOTE_ORDER = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 const NOTE_COLORS = {
@@ -220,6 +231,176 @@ function GamepadBadge({ connected, id }) {
   );
 }
 
+const TILE_W = 56;
+const TILE_H = 40;
+const TILE_GAP = 8;
+const TILE_STRIDE = TILE_W + TILE_GAP;
+const HIT_X = 72;
+const LOOKAHEAD = 7;
+
+// Unique octaves in the sequence, sorted low→high, used to assign vertical rows
+const SEQ_OCTAVES = [...new Set(MARIO_SEQUENCE.map((s) => s.oct))].sort((a, b) => a - b);
+const LANE_PADDING = 10; // px above top row and below bottom row
+const ROW_H = TILE_H + 12; // vertical space per octave row
+const LANE_H = SEQ_OCTAVES.length * ROW_H + LANE_PADDING * 2;
+
+// Returns the Y centre for a given octave within the lane
+function octaveToY(oct) {
+  const rowIdx = SEQ_OCTAVES.indexOf(oct); // 0 = lowest
+  // Invert so higher oct = higher up (lower Y)
+  const invertedIdx = SEQ_OCTAVES.length - 1 - rowIdx;
+  return LANE_PADDING + invertedIdx * ROW_H + ROW_H / 2;
+}
+
+function MarioRhythmPanel({ marioStep, setMarioStep, setMarioMode, activeNotes, semitoneMode }) {
+  const current = marioStep < MARIO_SEQUENCE.length ? MARIO_SEQUENCE[marioStep] : null;
+  const needsSemitone = current && (current.label.includes('b') || current.label.includes('#'));
+  const isPlaying     = current && activeNotes.has(current.note);
+  const done          = marioStep >= MARIO_SEQUENCE.length;
+
+  const windowStart = Math.max(0, marioStep - 1);
+  const windowEnd   = Math.min(MARIO_SEQUENCE.length, marioStep + LOOKAHEAD + 1);
+  const visible     = MARIO_SEQUENCE.slice(windowStart, windowEnd).map((s, i) => ({
+    ...s,
+    globalIdx: windowStart + i,
+  }));
+
+  return (
+    <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none flex justify-center">
+      <div className="pointer-events-auto w-full max-w-3xl mx-2 mb-1 rounded-xl border border-yellow-500/30 bg-slate-950/95 backdrop-blur-md shadow-2xl shadow-yellow-500/10">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black tracking-widest text-yellow-400 uppercase">🍄 Mario Theme</span>
+            <span className="text-[10px] text-slate-500">{Math.min(marioStep, MARIO_SEQUENCE.length)}/{MARIO_SEQUENCE.length}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {!done && needsSemitone && !semitoneMode && (
+              <span className="animate-pulse rounded-md bg-purple-500/20 border border-purple-400/50 px-2 py-0.5 text-[10px] font-black text-purple-300">
+                HOLD RB — SEMITONE
+              </span>
+            )}
+            {!done && needsSemitone && semitoneMode && (
+              <span className="rounded-md bg-purple-700/30 border border-purple-500/40 px-2 py-0.5 text-[10px] font-black text-purple-200">
+                ✓ SEMITONE ON
+              </span>
+            )}
+            {done && <span className="text-yellow-300 font-black text-xs">🎉 Wahoo!</span>}
+            <button onClick={() => setMarioStep(0)} className="text-[10px] text-slate-500 hover:text-slate-300 transition">Reset</button>
+            <button onClick={() => setMarioMode(false)} className="text-slate-400 hover:text-white transition text-xs px-1">✕</button>
+          </div>
+        </div>
+
+        {/* Rhythm lane */}
+        <div className="relative mx-3 my-2 rounded-lg bg-slate-900 border border-slate-700/50"
+          style={{ height: LANE_H }}>
+
+          {/* Octave row labels + horizontal guides */}
+          {SEQ_OCTAVES.map((oct) => {
+            const cy = octaveToY(oct);
+            return (
+              <g key={oct}>
+                {/* Row guide line */}
+                <div className="absolute left-0 right-0 border-t border-slate-800/60"
+                  style={{ top: cy }} />
+                {/* Octave label on left */}
+                <div className="absolute left-1 flex items-center justify-center rounded px-1 text-[9px] font-black text-cyan-500/70"
+                  style={{ top: cy - 8, height: 16 }}>
+                  {oct}
+                </div>
+              </g>
+            );
+          })}
+
+          {/* Hit zone line */}
+          <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-400/80 shadow-lg shadow-yellow-400/50 z-10"
+            style={{ left: HIT_X }} />
+          <div className="absolute top-1 text-[8px] font-black text-yellow-400/50 z-10 select-none"
+            style={{ left: HIT_X + 3 }}>HIT</div>
+          {isPlaying && (
+            <div className="absolute top-0 bottom-0 w-10 bg-yellow-400/10 animate-pulse z-10"
+              style={{ left: HIT_X - 20 }} />
+          )}
+
+          {/* Note tiles */}
+          {visible.map((step) => {
+            const offset    = step.globalIdx - marioStep;
+            const x         = HIT_X + offset * TILE_STRIDE - TILE_W / 2;
+            const y         = octaveToY(step.oct);
+            const isDone    = step.globalIdx < marioStep;
+            const isCurrent = step.globalIdx === marioStep;
+            const isHit     = isCurrent && isPlaying;
+            const color     = NOTE_COLORS[step.label.replace(/b|#/, '')] ?? { fill: '#64748b', text: '#fff' };
+            const hasSemi   = step.label.includes('b') || step.label.includes('#');
+
+            return (
+              <div
+                key={step.globalIdx}
+                className="absolute flex flex-col items-center justify-center rounded-lg border-2 transition-all duration-100 select-none"
+                style={{
+                  left: x,
+                  top: y - TILE_H / 2,
+                  width: TILE_W,
+                  height: TILE_H,
+                  background: isDone
+                    ? 'rgba(15,23,42,0.3)'
+                    : isHit
+                    ? color.fill
+                    : isCurrent
+                    ? `${color.fill}44`
+                    : `${color.fill}1a`,
+                  borderColor: isDone
+                    ? 'rgba(71,85,105,0.25)'
+                    : isHit
+                    ? '#fff'
+                    : isCurrent
+                    ? color.fill
+                    : `${color.fill}66`,
+                  opacity: isDone ? 0.25 : 1,
+                  boxShadow: isHit
+                    ? `0 0 16px ${color.fill}, 0 0 4px #fff4`
+                    : isCurrent
+                    ? `0 0 8px ${color.fill}88`
+                    : 'none',
+                  transform: `scale(${isHit ? 1.1 : isCurrent ? 1.05 : 1})`,
+                  zIndex: isCurrent ? 5 : 1,
+                }}
+              >
+                {/* Note name */}
+                <span className="font-black leading-none" style={{
+                  fontSize: 16,
+                  color: isDone ? '#334155' : isHit ? color.text : color.fill,
+                }}>
+                  {step.label}
+                </span>
+
+                {/* Octave number below note */}
+                <span className="font-bold leading-none mt-0.5" style={{
+                  fontSize: 10,
+                  color: isDone ? '#1e293b' : isHit ? color.text : '#64748b',
+                }}>
+                  oct {step.oct}
+                </span>
+
+                {/* Semitone badge */}
+                {hasSemi && !isDone && (
+                  <div
+                    className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-px text-[8px] font-black whitespace-nowrap"
+                    style={{ background: '#7c3aed', color: '#fff', lineHeight: 1.4 }}
+                  >
+                    RB
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function WheelInstrument({
   attackNoteForPointer,
@@ -242,6 +423,37 @@ export default function WheelInstrument({
   const [gpNoteIdx, setGpNoteIdx]               = useState(null);
   const [ltValue, setLtValue]                   = useState(-1);
   const [rtValue, setRtValue]                   = useState(-1);
+
+  const [marioMode, setMarioMode] = useState(false);
+  const [marioStep, setMarioStep] = useState(0);
+  const marioBufferRef = useRef('');
+  const marioStepRef = useRef(0);
+  useEffect(() => { marioStepRef.current = marioStep; }, [marioStep]);
+
+  useEffect(() => {
+    const target = 'mario';
+    const onKey = (e) => {
+      marioBufferRef.current = (marioBufferRef.current + e.key.toLowerCase()).slice(-target.length);
+      if (marioBufferRef.current === target) {
+        setMarioMode((prev) => !prev);
+        setMarioStep(0);
+        marioBufferRef.current = '';
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Auto-advance mario step when the expected note is played
+  useEffect(() => {
+    if (!marioMode) return;
+    const step = marioStepRef.current;
+    if (step >= MARIO_SEQUENCE.length) return;
+    const expected = MARIO_SEQUENCE[step].note;
+    if (activeNotes.has(expected)) {
+      setMarioStep((s) => s + 1);
+    }
+  }, [activeNotes, marioMode]);
 
   const semitoneModeRef       = useRef(false);
   const selectedChordTypeRef  = useRef(0);
@@ -411,6 +623,12 @@ export default function WheelInstrument({
       if (Math.abs(lt - (prevRef.current.ltRaw ?? 0)) > 0.01) setLtValueRef.current(lt * 2 - 1);
       if (Math.abs(rt - (prevRef.current.rtRaw ?? 0)) > 0.01) setRtValueRef.current(rt * 2 - 1);
 
+      // ── LT = oct−, RT = oct+ (edge-triggered on threshold cross) ───
+      const ltPressed = lt >= TRIGGER_THRESHOLD;
+      const rtPressed = rt >= TRIGGER_THRESHOLD;
+      if (ltPressed && !(prevRef.current.ltPressed ?? false)) setSelectedOctaveRef2.current((o) => Math.max(1, o - 1));
+      if (rtPressed && !(prevRef.current.rtPressed ?? false)) setSelectedOctaveRef2.current((o) => Math.min(7, o + 1));
+
       // ── A (0) = oct−, B (1) = oct+ ─────────────────────────────────
       const aBtn = gp.buttons[0]?.pressed ?? false;
       const bBtn = gp.buttons[1]?.pressed ?? false;
@@ -440,7 +658,7 @@ export default function WheelInstrument({
         }
       }
 
-      prevRef.current = { chordSeg, noteSeg, ltRaw: lt, rtRaw: rt, aBtn, bBtn, dLeft, dRight, rbBtn };
+      prevRef.current = { chordSeg, noteSeg, ltRaw: lt, rtRaw: rt, ltPressed, rtPressed, aBtn, bBtn, dLeft, dRight, rbBtn };
       rafRef.current = requestAnimationFrame(poll);
     };
 
@@ -529,7 +747,7 @@ export default function WheelInstrument({
         <GamepadBadge connected={gamepadConnected} id={gamepadId} />
         <div className="flex items-center gap-3">
           <TriggerBar label="LT oct−" value={ltValue} color="#818cf8" />
-          <TriggerBar label="RT" value={rtValue} color="#a78bfa" />
+          <TriggerBar label="RT oct+" value={rtValue} color="#a78bfa" />
         </div>
       </div>
 
@@ -673,6 +891,17 @@ export default function WheelInstrument({
         <span>Key: <span className="font-bold text-cyan-300">{selectedKey}</span></span>
         <span>Oct: <span className="font-bold text-cyan-300">{selectedOctave}</span></span>
       </div>
+
+      {/* Mario rhythm game panel — fixed at bottom, non-blocking */}
+      {marioMode && (
+        <MarioRhythmPanel
+          marioStep={marioStep}
+          setMarioStep={setMarioStep}
+          setMarioMode={setMarioMode}
+          activeNotes={activeNotes}
+          semitoneMode={semitoneMode}
+        />
+      )}
     </div>
   );
 }

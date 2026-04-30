@@ -905,9 +905,15 @@ function App() {
     const enabledFX = Object.entries(fxState).filter(([_, state]) => state.enabled);
     
     if (enabledFX.length === 0) {
-      // No FX enabled, connect directly to analyzer/destination
+      // No FX enabled, connect directly to analyzer/recorder/destination
       if (analyzerRef.current) {
         inst.connect(analyzerRef.current);
+      }
+      if (recorderRef.current) {
+        inst.connect(recorderRef.current);
+      }
+      // Connect destination signals
+      if (analyzerRef.current) {
         analyzerRef.current.toDestination();
       } else {
         inst.toDestination();
@@ -915,7 +921,7 @@ function App() {
       return;
     }
 
-    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer -> destination
+    // Create chain: instrument -> FX1 -> FX2 -> ... -> FXn -> analyzer/recorder -> destination
     let lastNode = inst;
     
     enabledFX.forEach(([pedalKey, state]) => {
@@ -926,9 +932,15 @@ function App() {
       }
     });
     
-    // Connect last FX to analyzer or destination
+    // Connect last FX to analyzer and recorder
     if (analyzerRef.current) {
       lastNode.connect(analyzerRef.current);
+    }
+    if (recorderRef.current) {
+      lastNode.connect(recorderRef.current);
+    }
+    // Connect destination signals
+    if (analyzerRef.current) {
       analyzerRef.current.toDestination();
     } else {
       lastNode.toDestination();
@@ -1147,7 +1159,7 @@ function App() {
     try {
       const recording = await recorderRef.current.stop();
       
-      if (recording.size < 500) {
+      if (recording.size < 10) {
         throw new Error('Recording is too short or empty. Please ensure audio was playing.');
       }
       

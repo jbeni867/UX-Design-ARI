@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 export const TWINKLE_SEQUENCE = [
+  // Twinkle twinkle little star
   { note: 'C4', label: 'C', oct: 4 },
   { note: 'C4', label: 'C', oct: 4 },
   { note: 'G4', label: 'G', oct: 4 },
@@ -8,6 +9,7 @@ export const TWINKLE_SEQUENCE = [
   { note: 'A4', label: 'A', oct: 4 },
   { note: 'A4', label: 'A', oct: 4 },
   { note: 'G4', label: 'G', oct: 4 },
+  // How I wonder what you are
   { note: 'F4', label: 'F', oct: 4 },
   { note: 'F4', label: 'F', oct: 4 },
   { note: 'E4', label: 'E', oct: 4 },
@@ -15,6 +17,22 @@ export const TWINKLE_SEQUENCE = [
   { note: 'D4', label: 'D', oct: 4 },
   { note: 'D4', label: 'D', oct: 4 },
   { note: 'C4', label: 'C', oct: 4 },
+  // Up above the world so high
+  { note: 'G4', label: 'G', oct: 4 },
+  { note: 'G4', label: 'G', oct: 4 },
+  { note: 'F4', label: 'F', oct: 4 },
+  { note: 'F4', label: 'F', oct: 4 },
+  { note: 'E4', label: 'E', oct: 4 },
+  { note: 'E4', label: 'E', oct: 4 },
+  { note: 'D4', label: 'D', oct: 4 },
+  // Like a diamond in the sky
+  { note: 'G4', label: 'G', oct: 4 },
+  { note: 'G4', label: 'G', oct: 4 },
+  { note: 'F4', label: 'F', oct: 4 },
+  { note: 'F4', label: 'F', oct: 4 },
+  { note: 'E4', label: 'E', oct: 4 },
+  { note: 'E4', label: 'E', oct: 4 },
+  { note: 'D4', label: 'D', oct: 4 },
 ];
 
 const NOTE_COLORS = {
@@ -124,7 +142,7 @@ export default function SongGuide({ activeNotes, step, setStep, onDismiss }) {
                   {s.label}
                 </span>
                 <span style={{
-                  fontSize: 8,
+                  fontSize: isCurrent ? 12 : 10,
                   lineHeight: 1,
                   marginTop: 2,
                   color: isDone ? '#1e293b' : isPlaying ? color.text : '#475569',

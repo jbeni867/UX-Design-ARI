@@ -109,11 +109,11 @@ export function useStepSequencer(instrumentRef) {
  * @param {Object} props
  * @param {Object} props.sequencer - The object returned by useStepSequencer()
  */
-export function SequencerControls({ sequencer }) {
+export function SequencerControls({ sequencer, compact = false, className = '' }) {
   const { sequence, isPlaying, bpm, setBpm, clearSequence, undoStep, togglePlayback } = sequencer;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur">
+    <div className={`flex ${compact ? 'flex-col items-stretch gap-2' : 'items-center gap-3'} rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur ${className}`}>
       <div className="flex flex-col">
         <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300">Arpeggiator</span>
         <span className="text-xs font-semibold text-slate-300">{sequence.length} steps</span>
@@ -131,13 +131,13 @@ export function SequencerControls({ sequencer }) {
         {isPlaying ? 'Stop' : 'Play Rhythm'}
       </button>
 
-      <div className="flex items-center gap-2">
+      <div className={`flex ${compact ? 'items-center justify-between' : 'items-center gap-2'} gap-2`}>
         <label className="text-xs font-semibold text-slate-300">BPM</label>
         <input 
           type="number" 
           value={bpm} 
           onChange={(e) => setBpm(Number(e.target.value))}
-          className="w-16 rounded-md bg-slate-900 px-2 py-1 text-sm font-medium text-white shadow-inner outline-none focus:ring-2 focus:ring-purple-500/50"
+          className={`rounded-md bg-slate-900 px-2 py-1 text-sm font-medium text-white shadow-inner outline-none focus:ring-2 focus:ring-purple-500/50 ${compact ? 'w-20' : 'w-16'}`}
           min="40"
           max="300"
         />
@@ -146,7 +146,7 @@ export function SequencerControls({ sequencer }) {
       <button
         onClick={undoStep}
         disabled={isPlaying || sequence.length === 0}
-        className="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-yellow-400 transition-colors hover:bg-yellow-500/20 hover:text-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-yellow-400 transition-colors hover:bg-yellow-500/20 hover:text-yellow-300 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? 'w-full' : ''}`}
       >
         Undo
       </button>
@@ -154,7 +154,7 @@ export function SequencerControls({ sequencer }) {
       <button
         onClick={clearSequence}
         disabled={isPlaying || sequence.length === 0}
-        className="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? 'w-full' : ''}`}
       >
         Clear
       </button>

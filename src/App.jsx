@@ -1444,7 +1444,7 @@ function App() {
 
           {/* Mobile Menu Dropdown */}
           {mobileHeaderOpen && (
-            <div className={`${isWaffleHeader ? 'block' : 'hidden'} mt-4 space-y-2 border-t border-slate-700/40 pt-4`}>
+            <div className={`${isWaffleHeader ? 'block' : 'hidden'} mt-4 max-h-[calc(100dvh-9rem)] w-full max-w-full space-y-2 overflow-y-auto overflow-x-hidden border-t border-slate-700/40 pt-4 pr-1`}>
               {/* Audio Status */}
               <div className="px-2 py-2 text-xs font-semibold text-slate-400">
                 {samplerLoading ? (
@@ -1462,7 +1462,7 @@ function App() {
 
               {/* Sequencer Controls */}
               <div className="px-2 py-2">
-                <SequencerControls sequencer={sequencer} />
+                <SequencerControls sequencer={sequencer} compact className="w-full max-w-full" />
               </div>
 
               {/* Instrument Picker Button */}
@@ -1499,7 +1499,7 @@ function App() {
               </div>
 
               {/* Scale & Key Controls */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-slate-400 block mb-1">Scale</label>
                   <select
@@ -1545,12 +1545,37 @@ function App() {
 
                 <button
                   onClick={() => {
+                    if (songGuideOpen) {
+                      setSongGuideOpen(false);
+                    } else {
+                      setSongGuideOpen(true);
+                      setSongGuideStep(0);
+                    }
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
+                >
+                  {songGuideOpen ? '✕ Hide Twinkle Twinkle' : '★ Twinkle Twinkle'}
+                </button>
+
+                <button
+                  onClick={() => {
                     handleTutorialLaunch();
                     setMobileHeaderOpen(false);
                   }}
                   className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
                   Tutorial
+                </button>
+
+                <button
+                  onClick={() => {
+                    setFxModalOpen(true);
+                    setMobileHeaderOpen(false);
+                  }}
+                  className="w-full rounded-lg border border-purple-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-purple-50 transition-all duration-200 hover:border-purple-400/50 hover:bg-slate-700/80"
+                >
+                  FX Pedals
                 </button>
               </div>
             </div>

@@ -109,11 +109,13 @@ export function useStepSequencer(instrumentRef) {
  * @param {Object} props
  * @param {Object} props.sequencer - The object returned by useStepSequencer()
  */
-export function SequencerControls({ sequencer, compact = false, className = '' }) {
+export function SequencerControls({ sequencer, compact = false, className = '', dataTutorial = null }) {
   const { sequence, isPlaying, bpm, setBpm, clearSequence, undoStep, togglePlayback } = sequencer;
 
   return (
-    <div className={`flex ${compact ? 'flex-col items-stretch gap-2' : 'items-center gap-3'} rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur ${className}`}>
+    <div 
+      {...(dataTutorial && { 'data-tutorial': dataTutorial })}
+      className={`flex ${compact ? 'flex-col items-stretch gap-2' : 'items-center gap-3'} rounded-xl border border-purple-500/30 bg-slate-800/80 px-3 py-2 shadow-lg backdrop-blur ${className}`}>
       <div className="flex flex-col">
         <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300">Arpeggiator</span>
         <span className="text-xs font-semibold text-slate-300">{sequence.length} steps</span>

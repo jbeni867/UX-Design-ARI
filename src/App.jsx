@@ -654,9 +654,54 @@ function App() {
 
   const handleTutorialLaunch = () => {
     setOptionsOpen(false);
+    setMobileHeaderOpen(false);
     window.setTimeout(() => {
       void startTutorial();
     }, 0);
+  };
+
+  const createTour = (steps) => {
+    const tutorialContainer = document.body;
+    const tour = new Shepherd.Tour({
+      useModalOverlay: true,
+      stepsContainer: tutorialContainer,
+      modalContainer: tutorialContainer,
+      defaultStepOptions: {
+        scrollTo: { behavior: 'smooth', block: 'center' },
+        cancelIcon: { enabled: true },
+        classes: 'shadow-2xl',
+      },
+    });
+
+    const nextButton = { text: 'Next', action: tour.next };
+    const backButton = { text: 'Back', action: tour.back };
+    const finishButton = { text: 'Finish', action: tour.complete };
+
+    steps.forEach((step, index) => {
+      const isLastStep = index === steps.length - 1;
+      const defaultButtons = isLastStep ? [backButton, finishButton] : [backButton, nextButton];
+      tour.addStep({ ...step, buttons: step.buttons || defaultButtons });
+    });
+
+    tour.on('cancel', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      setMobileHeaderOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    tour.on('complete', async () => {
+      setPickerOpen(false);
+      setOptionsOpen(false);
+      setMobileHeaderOpen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        await toggleGridFullscreen();
+      }
+    });
+
+    return tour;
   };
 
   const startTutorial = async () => {
@@ -675,162 +720,234 @@ function App() {
 
     setPickerOpen(false);
     setOptionsOpen(false);
+    setMobileHeaderOpen(false);
     setSelectedScale('major');
     setSelectedKey('C');
 
-    const setTutorialContainers = (container) => {
-      tour.options.stepsContainer = container;
-      tour.options.modalContainer = container;
-    };
+    if (isWaffleHeader) {
+      // Mobile tutorial
+      const mobileSteps = [
+        {
+          id: 'welcome',
+          title: 'Welcome To ARI',
+          text: 'This is a quick guide to the mobile interface. Let\'s get started!',
+          attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
+        },
+        {
+          id: 'octaves',
+          title: 'Octave Axis (Vertical)',
+          text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
+          attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
+        },
+        {
+          id: 'notes',
+          title: 'Note Axis (Horizontal)',
+          text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
+          attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
+        },
+        {
+          id: 'arpeggiator',
+          title: 'Arpeggiator - Create Rhythmic Patterns',
+          text: 'The Arpeggiator lets you record a sequence of notes that plays back automatically.',
+          attachTo: { element: '[data-tutorial="arpeggiator-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'instrument-trigger-mobile',
+          title: 'Change Instruments',
+          text: 'Tap this button to open the instrument picker and switch between synths and sampled instruments.',
+          attachTo: { element: '[data-tutorial="instrument-button-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'record-song-mobile',
+          title: 'Record A Song',
+          text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
+          attachTo: { element: '[data-tutorial="record-button-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'hide-unused-mobile',
+          title: 'Show Unused Notes',
+          text: 'You can toggle this to hide or show notes outside your selected scale. Hiding them makes the remaining buttons larger.',
+          attachTo: { element: '[data-tutorial="hide-unused-button-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'wheel-layout-mobile',
+          title: 'Wheel Layout For Controllers',
+          text: 'Use this when playing with a connected game controller. Wheel Layout is optimized for controller input and navigation.',
+          attachTo: { element: '[data-tutorial="wheel-layout-button-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'fx-pedals-mobile',
+          title: 'FX Pedals',
+          text: 'Open FX Pedals to add effects like reverb, delay, and more to shape your sound.',
+          attachTo: { element: '[data-tutorial="fx-pedals-button-mobile"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 200));
+          },
+        },
+        {
+          id: 'song-guide-mobile',
+          title: 'Try Playing a Song!',
+          text: 'Follow along with the note guide below the grid — play each highlighted note in order. The guide advances automatically as you play. Give it a try!',
+          attachTo: { element: '[data-tutorial="song-guide"]', on: 'top' },
+          beforeShowPromise: () => {
+            setMobileHeaderOpen(false);
+            setSongGuideOpen(true);
+            setSongGuideStep(0);
+            setHideUnusedNotes(true);
+            return new Promise((resolve) => setTimeout(resolve, 150));
+          },
+        },
+      ];
 
-    const tutorialContainer = document.body;
+      const tour = createTour(mobileSteps);
+      tutorialRef.current = tour;
+      tour.start();
+    } else {
+      // Desktop tutorial
+      const desktopSteps = [
+        {
+          id: 'welcome',
+          title: 'Welcome To ARI',
+          text: 'This tutorial covers navigation: octaves and notes, instruments, recording, scales/key, hide unused notes, and fullscreen controls.',
+          attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
+        },
+        {
+          id: 'octaves',
+          title: 'Octave Axis (Vertical)',
+          text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
+          attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
+        },
+        {
+          id: 'notes',
+          title: 'Note Axis (Horizontal)',
+          text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
+          attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
+        },
+        {
+          id: 'instrument-trigger',
+          title: 'Change Instruments',
+          text: 'Use this control to open the instrument picker and switch between synths and sampled instruments.',
+          attachTo: { element: '[data-tutorial="instrument-button"]', on: 'bottom' },
+        },
+        {
+          id: 'instrument-picker',
+          title: 'Instrument Picker',
+          text: 'Pick any instrument here. You can choose from synth engines or realistic sampled instruments. The tutorial advances as soon as you choose one.',
+          attachTo: { element: '[data-tutorial="instrument-modal"]', on: 'right' },
+          beforeShowPromise: () => {
+            setPickerOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 150));
+          },
+          buttons: [],
+        },
+        {
+          id: 'arpeggiator',
+          title: 'Arpeggiator - Create Rhythmic Patterns',
+          text: 'The Arpeggiator lets you record a sequence of notes that plays back automatically at a tempo you control. Tap notes to add them to the sequence, then press Play to hear your rhythm pattern. Adjust the BPM slider to control the playback speed.',
+          attachTo: { element: '[data-tutorial="arpeggiator"]', on: 'bottom' },
+        },
+        {
+          id: 'record-song',
+          title: 'Record A Song',
+          text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
+          attachTo: { element: '[data-tutorial="record-button"]', on: 'bottom' },
+        },
+        {
+          id: 'scale-and-key',
+          title: 'Scale And Key (Major/Minor)',
+          text: 'Choose a scale (Major, Minor, Pentatonic, or Chromatic) and choose a key/root note. This controls which notes are considered in-scale.',
+          attachTo: { element: '[data-tutorial="scale-controls"]', on: 'bottom' },
+        },
+        {
+          id: 'options-menu-button',
+          title: 'Options Menu',
+          text: 'This button opens the Options menu, where you can hide unused notes and reopen the tutorial later.',
+          attachTo: { element: '[data-tutorial="options-button"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setOptionsOpen(false);
+            return new Promise((resolve) => setTimeout(resolve, 120));
+          },
+        },
+        {
+          id: 'hide-unused',
+          title: 'Show Unused Notes',
+          text: 'You can toggle this to hide or show notes outside your selected scale. Hiding them makes the remaining buttons larger, which is especially helpful on mobile.',
+          attachTo: { element: '[data-tutorial="hide-unused-button"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setOptionsOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 120));
+          },
+        },
+        {
+          id: 'tutorial-menu-item',
+          title: 'Tutorial Button',
+          text: 'This button reopens the tutorial anytime from the Options menu.',
+          attachTo: { element: '[data-tutorial="tutorial-button"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setOptionsOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 120));
+          },
+        },
+        {
+          id: 'wheel-layout',
+          title: 'Wheel Layout',
+          text: 'Connect a gamepad or controller to unlock Wheel Layout—a circular note interface designed for physical controller input.',
+          attachTo: { element: '[data-tutorial="wheel-layout-button"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setOptionsOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 120));
+          },
+        },
+        {
+          id: 'fx-pedals',
+          title: 'FX Pedals',
+          text: 'Use FX Pedals to add effects like reverb and delay to your instrument sound.',
+          attachTo: { element: '[data-tutorial="fx-pedals-button"]', on: 'bottom' },
+          beforeShowPromise: () => {
+            setOptionsOpen(true);
+            return new Promise((resolve) => setTimeout(resolve, 120));
+          },
+        },
+        {
+          id: 'song-guide',
+          title: 'Try Playing a Song!',
+          text: 'Follow along with the note guide below the grid — play each highlighted note in order. The guide advances automatically as you play. Give it a try!',
+          attachTo: { element: '[data-tutorial="song-guide"]', on: 'top' },
+          beforeShowPromise: () => {
+            setOptionsOpen(false);
+            setSongGuideOpen(true);
+            setSongGuideStep(0);
+            setHideUnusedNotes(true);
+            return new Promise((resolve) => setTimeout(resolve, 150));
+          },
+        },
+      ];
 
-    const tour = new Shepherd.Tour({
-      useModalOverlay: true,
-      stepsContainer: tutorialContainer,
-      modalContainer: tutorialContainer,
-      defaultStepOptions: {
-        scrollTo: { behavior: 'smooth', block: 'center' },
-        cancelIcon: { enabled: true },
-        classes: 'shadow-2xl',
-      },
-    });
-
-    const nextButton = { text: 'Next', action: tour.next };
-    const backButton = { text: 'Back', action: tour.back };
-
-    tour.addStep({
-      id: 'welcome',
-      title: 'Welcome To ARI',
-      text: 'This tutorial covers navigation: octaves and notes, instruments, recording, scales/key, hide unused notes, and fullscreen controls.',
-      attachTo: { element: '[data-tutorial="app-header"]', on: 'bottom' },
-      buttons: [nextButton],
-    });
-
-    tour.addStep({
-      id: 'octaves',
-      title: 'Octave Axis (Vertical)',
-      text: 'Each horizontal row is an octave. Higher rows are higher pitch and lower rows are deeper pitch.',
-      attachTo: { element: '[data-tutorial="octave-label"]', on: 'right' },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'notes',
-      title: 'Note Axis (Horizontal)',
-      text: 'Each column is a note name (C, Db, D, etc.). Tap a note button to play that note in the row\'s octave.',
-      attachTo: { element: '[data-tutorial="note-c"]', on: 'top' },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'instrument-trigger',
-      title: 'Change Instruments',
-      text: 'Use this control to open the instrument picker and switch between synths and sampled instruments.',
-      attachTo: { element: '[data-tutorial="instrument-button"]', on: 'bottom' },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'instrument-picker',
-      title: 'Instrument Picker',
-      text: 'Pick any instrument here. You can choose from synth engines or realistic sampled instruments. The tutorial advances as soon as you choose one.',
-      attachTo: { element: '[data-tutorial="instrument-modal"]', on: 'right' },
-      beforeShowPromise: () => {
-        setPickerOpen(true);
-        return new Promise((resolve) => setTimeout(resolve, 150));
-      },
-      buttons: [],
-    });
-
-    tour.addStep({
-      id: 'record-song',
-      title: 'Record A Song',
-      text: 'Tap Record to start, Pause to pause/resume, then End Recording to download your performance as an MP3 file.',
-      attachTo: { element: '[data-tutorial="record-button"]', on: 'bottom' },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'scale-and-key',
-      title: 'Scale And Key (Major/Minor)',
-      text: 'Choose a scale (Major, Minor, Pentatonic, or Chromatic) and choose a key/root note. This controls which notes are considered in-scale.',
-      attachTo: { element: '[data-tutorial="scale-controls"]', on: 'bottom' },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'options-menu-button',
-      title: 'Options Menu',
-      text: 'This button opens the Options menu, where you can hide unused notes and reopen the tutorial later.',
-      attachTo: { element: '[data-tutorial="options-button"]', on: 'bottom' },
-      beforeShowPromise: () => {
-        setOptionsOpen(false);
-        return new Promise((resolve) => setTimeout(resolve, 120));
-      },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'hide-unused',
-      title: 'Hide Unused Notes',
-      text: 'This removes notes outside your selected scale and makes the remaining buttons larger, which is especially helpful on mobile.',
-      attachTo: { element: '[data-tutorial="hide-unused-button"]', on: 'bottom' },
-      beforeShowPromise: () => {
-        setOptionsOpen(true);
-        return new Promise((resolve) => setTimeout(resolve, 120));
-      },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'tutorial-menu-item',
-      title: 'Tutorial Button',
-      text: 'This button reopens the tutorial anytime from the Options menu.',
-      attachTo: { element: '[data-tutorial="tutorial-button"]', on: 'bottom' },
-      beforeShowPromise: () => {
-        setOptionsOpen(true);
-        return new Promise((resolve) => setTimeout(resolve, 120));
-      },
-      buttons: [backButton, nextButton],
-    });
-
-    tour.addStep({
-      id: 'song-guide',
-      title: 'Try Playing a Song!',
-      text: 'Follow along with the note guide below the grid — play each highlighted note in order. The guide advances automatically as you play. Give it a try!',
-      attachTo: { element: '[data-tutorial="song-guide"]', on: 'top' },
-      beforeShowPromise: () => {
-        setOptionsOpen(false);
-        setSongGuideOpen(true);
-        setSongGuideStep(0);
-        setHideUnusedNotes(true);
-        return new Promise((resolve) => setTimeout(resolve, 150));
-      },
-      buttons: [
-        backButton,
-        { text: 'Finish', action: tour.complete },
-      ],
-    });
-
-    tour.on('cancel', async () => {
-      setPickerOpen(false);
-      setOptionsOpen(false);
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        await toggleGridFullscreen();
-      }
-    });
-
-    tour.on('complete', async () => {
-      setPickerOpen(false);
-      setOptionsOpen(false);
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        await toggleGridFullscreen();
-      }
-    });
-
-    tutorialRef.current = tour;
-    tour.start();
+      const tour = createTour(desktopSteps);
+      tutorialRef.current = tour;
+      tour.start();
+    }
   };
 
 
@@ -1306,7 +1423,7 @@ function App() {
 
             {/* Desktop Menu */}
             <div className={`${isWaffleHeader ? 'hidden' : 'flex'} flex-nowrap items-center justify-end gap-3`}>
-              <SequencerControls sequencer={sequencer} />
+              <SequencerControls sequencer={sequencer} dataTutorial="arpeggiator" />
 
               <div className="flex flex-col items-center gap-1">
                 <button
@@ -1417,6 +1534,7 @@ function App() {
                     </button>
 
                     <button
+                      data-tutorial="wheel-layout-button"
                       onClick={() => gamepadActive && setLayoutMode((m) => m === 'grid' ? 'wheel' : 'grid')}
                       disabled={!gamepadActive}
                       title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
@@ -1426,6 +1544,7 @@ function App() {
                     </button>
 
                     <button
+                      data-tutorial="fx-pedals-button"
                       onClick={() => {
                         setFxModalOpen(true);
                         setOptionsOpen(false);
@@ -1462,11 +1581,12 @@ function App() {
 
               {/* Sequencer Controls */}
               <div className="px-2 py-2">
-                <SequencerControls sequencer={sequencer} compact className="w-full max-w-full" />
+                <SequencerControls sequencer={sequencer} compact className="w-full max-w-full" dataTutorial="arpeggiator-mobile" />
               </div>
 
               {/* Instrument Picker Button */}
               <button
+                data-tutorial="instrument-button-mobile"
                 onClick={() => {
                   setPickerOpen(true);
                   setMobileHeaderOpen(false);
@@ -1479,6 +1599,7 @@ function App() {
               {/* Recording Controls */}
               <div className="flex gap-2">
                 <button
+                  data-tutorial="record-button-mobile"
                   onClick={handleRecordPauseToggle}
                   className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
                     recordingState === 'recording'
@@ -1534,13 +1655,14 @@ function App() {
               {/* Toggle Options */}
               <div className="space-y-2">
                 <button
+                  data-tutorial="hide-unused-button-mobile"
                   onClick={() => {
                     setHideUnusedNotes(!hideUnusedNotes);
                     setMobileHeaderOpen(false);
                   }}
                   className="w-full rounded-lg border border-cyan-500/20 bg-slate-800/70 px-3 py-2 text-left text-sm font-semibold text-cyan-50 transition-all duration-200 hover:border-cyan-400/50 hover:bg-slate-700/80"
                 >
-                  {hideUnusedNotes ? '✓ Hide Unused Notes' : 'Show All Notes'}
+                  {hideUnusedNotes ? '✓ Show All Notes' : '✓ Hide Unused Notes'}
                 </button>
 
                 <button
@@ -1559,6 +1681,7 @@ function App() {
                 </button>
 
                 <button
+                  data-tutorial="tutorial-button"
                   onClick={() => {
                     handleTutorialLaunch();
                     setMobileHeaderOpen(false);
@@ -1569,6 +1692,22 @@ function App() {
                 </button>
 
                 <button
+                  data-tutorial="wheel-layout-button-mobile"
+                  onClick={() => {
+                    if (gamepadActive) {
+                      setLayoutMode((m) => (m === 'grid' ? 'wheel' : 'grid'));
+                    }
+                    setMobileHeaderOpen(false);
+                  }}
+                  disabled={!gamepadActive}
+                  title={gamepadActive ? undefined : 'Connect a controller to enable Wheel Layout'}
+                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-all duration-200 ${gamepadActive ? 'border-purple-500/40 bg-slate-800/80 text-purple-200 hover:border-purple-400/60 hover:bg-slate-700/80' : 'cursor-not-allowed border-slate-600/30 bg-slate-800/40 text-slate-500 opacity-50'}`}
+                >
+                  {layoutMode === 'grid' ? 'Wheel Layout' : 'Grid Layout'}
+                </button>
+
+                <button
+                  data-tutorial="fx-pedals-button-mobile"
                   onClick={() => {
                     setFxModalOpen(true);
                     setMobileHeaderOpen(false);
